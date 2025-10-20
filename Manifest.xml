@@ -1,6 +1,6 @@
 <ContentPack version="1">
-  <Name>INSERT_MODNAME_HERE</Name> <!-- INSERT YOUR MODNAME HERE.-->
-  <ID>INSERT_UUID_HERE</ID> <!-- INSERT YOUR 128-BIT UUID HERE.-->
-  <Version>1</Version> <!-- Don't change -->
-  <Type>Game</Type> <!-- Don't change -->
+  <Name>Mod_ProTrack</Name>
+  <ID>beda6366-a595-41d2-8b72-d920fb151f28</ID>
+  <Version>1</Version>
+  <Type>Game</Type>
 </ContentPack>
