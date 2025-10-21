@@ -18,6 +18,7 @@ local module = global.module
 local Object = require("Common.object")
 local Mutators = require("Environment.ModuleMutators")
 local Vector3 = require("Vector3")
+local Utils = require("protrack.utils")
 local logger = require("forgeutils.logger").Get("ProTrackManager")
 
 --/ Main class definition
@@ -182,28 +183,37 @@ function protrackManager.Activate(self)
         local track = slf.selection:GetTrack()
         local length = slf.selection:GetLength()
 
-        for i = 1, length do
-            logger:Info("Doing I " .. i)
+        local trackEntity = api.track.GetTrackEntity(track)
+        local loc, speed = Utils.GetFirstCarTrackLocAndSpeed(trackEntity)
+        local data = Utils.WalkTrack(loc, speed, 0.1)
 
-            local section = slf.selection:GetSection(i)
+        -- for i, transform in global.ipairs(data) do
+        --     logger:Info("I = " .. i)
+        --     logger:Info(global.tostring(transform))
+        -- end
 
-            if i == 1 then
-                transforms[1] = (api.track.GetTrackLocationFromSection(track, section, 1, 1.0))
-                    :GetLocationTransform()
-            end
+        -- for i = 1, length do
+        --     logger:Info("Doing I " .. i)
 
-            local trackLoc = (api.track.GetTrackLocationFromSection(track, section, 1, 0.0))
+        --     local section = slf.selection:GetSection(i)
 
-            if trackLoc ~= nil then
-                transforms[#transforms + 1] = trackLoc:GetLocationTransform()
-            end
-        end
+        --     if i == 1 then
+        --         transforms[1] = (api.track.GetTrackLocationFromSection(track, section, 1, 1.0))
+        --             :GetLocationTransform()
+        --     end
+
+        --     local trackLoc = (api.track.GetTrackLocationFromSection(track, section, 1, 0.0))
+
+        --     if trackLoc ~= nil then
+        --         transforms[#transforms + 1] = trackLoc:GetLocationTransform()
+        --     end
+        -- end
 
         logger:Info("Done. Trying to print!")
-        for i, transform in global.ipairs(transforms) do
-            logger:Info("I = " .. i)
-            logger:Info(global.tostring(transform))
-        end
+        -- for i, transform in global.ipairs(transforms) do
+        --     logger:Info("I = " .. i)
+        --     logger:Info(global.tostring(transform))
+        -- end
 
         -- Call original
         baseDeleteSection(slf)
