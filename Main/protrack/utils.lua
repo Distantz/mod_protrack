@@ -5,6 +5,8 @@ local pairs = global.pairs
 local require = global.require
 local logger = require("forgeutils.logger").Get("ProTrackUtil")
 local Vector3 = require("Vector3")
+local TransformQ = require("TransformQ")
+local Quaternion = require("Quaternion")
 
 local Utils = {}
 
@@ -40,6 +42,7 @@ function Utils.WalkTrack(trackLoc, initSpeed, timestep)
     local dataPts = {}
     local minWalkDist = 0.01
     local gravity = 9.81
+    local friction = 0.974 ^ timestep
     local lastTransform = trackLoc:GetLocationTransform()
     local lastPosition = lastTransform:GetPos()
     local lastVelo = lastTransform:GetF() * curSpeed
@@ -66,13 +69,19 @@ function Utils.WalkTrack(trackLoc, initSpeed, timestep)
 
         -- Calculate speed
         local slopeAccel = gravity * Vector3.Dot(-Vector3.YAxis, transform:GetF()) -- m/s²
-        curSpeed = curSpeed + slopeAccel * timestep                                -- integrate over timestep
+        curSpeed = (curSpeed + slopeAccel * timestep) * friction                   -- integrate over timestep
 
         -- Calculate local acceleration, which is the velocity induced acceleration + the gravity acceleration.
         local actualAccelWS = -((thisVelo - lastVelo) / timestep) - Vector3.YAxis * gravity
         local localAccelG = -transform:ToLocalDir(actualAccelWS) / gravity
 
-        dataPts[#dataPts + 1] = localAccelG
+        local rotation = Quaternion.FromYawPitchRoll(transform:GetRotation():ToYawPitchRoll())
+        local localTransform = TransformQ.FromOrPos(rotation, thisPosition)
+
+        dataPts[#dataPts + 1] = {
+            g = localAccelG,
+            transform = localTransform,
+        }
         lastPosition = thisPosition
         lastVelo = thisVelo
 

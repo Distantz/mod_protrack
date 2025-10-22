@@ -19,12 +19,15 @@ local Object = require("Common.object")
 local Mutators = require("Environment.ModuleMutators")
 local Vector3 = require("Vector3")
 local Utils = require("protrack.utils")
+local Cam = require("protrack.cam")
+local Datastore = require("protrack.datastore")
 local logger = require("forgeutils.logger").Get("ProTrackManager")
 
 --/ Main class definition
 ---@class protrackManager
 local protrackManager = module(..., Mutators.Manager())
 
+protrackManager.dt = 0
 --
 -- @Brief Init function for this manager
 -- @param _tProperties  a table with initialization data for all the managers.
@@ -158,6 +161,8 @@ function protrackManager.Activate(self)
     -- Our entry point simply calls inject on the submode override file:
     logger:Info("Injecting...")
 
+    Cam.GetPreviewCameraEntity()
+
     local trackeditsel = require("Editors.Track.TrackEditSelection")
     local baseDeleteSection = trackeditsel.DeleteSelection
 
@@ -184,13 +189,15 @@ function protrackManager.Activate(self)
         local length = slf.selection:GetLength()
 
         local trackEntity = api.track.GetTrackEntity(track)
+        local trackEntityTrans = api.transform.GetTransform(trackEntity)
         local loc, speed = Utils.GetFirstCarTrackLocAndSpeed(trackEntity)
-        local data = Utils.WalkTrack(loc, speed, 0.1)
 
-        -- for i, transform in global.ipairs(data) do
-        --     logger:Info("I = " .. i)
-        --     logger:Info(global.tostring(transform))
-        -- end
+        Datastore.tDatapoints = Utils.WalkTrack(loc, speed, Datastore.tSimulationDelta)
+        Datastore.trackTransform = trackEntityTrans
+
+        Cam.StartRideCamera()
+        protrackManager.dt = 0
+
 
         -- for i = 1, length do
         --     logger:Info("Doing I " .. i)
@@ -209,7 +216,6 @@ function protrackManager.Activate(self)
         --     end
         -- end
 
-        logger:Info("Done. Trying to print!")
         -- for i, transform in global.ipairs(transforms) do
         --     logger:Info("I = " .. i)
         --     logger:Info(global.tostring(transform))
@@ -233,6 +239,19 @@ end
 --
 function protrackManager.Deactivate(self)
 
+end
+
+function protrackManager.Advance(self, deltaTime)
+    if #Datastore.tDatapoints > 0 then
+        protrackManager.dt = protrackManager.dt + deltaTime
+        local pt = Datastore.SampleDatapointAtTime(protrackManager.dt)
+        local wsTrans = Datastore.trackTransform:ToWorld(pt.transform)
+
+        logger:Info("G force: " .. global.tostring(pt.g))
+
+        api.transform.SetPosition(Cam.PreviewCameraEntity, wsTrans:GetPos())
+        api.transform.SetOrientation(Cam.PreviewCameraEntity, wsTrans:GetOr())
+    end
 end
 
 --/ Validate class methods and interfaces, the game needs
