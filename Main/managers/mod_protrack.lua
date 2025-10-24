@@ -161,6 +161,14 @@ function protrackManager.NewWalk(self)
         Datastore.trackWalkerSpeed,
         Datastore.tSimulationDelta
     )
+
+    Gizmo.SetVisible(true)
+    Gizmo.SetMarkers(
+        Datastore.trackEntityTransform:ToWorld(
+            Utils.TrackTransformToTransformQ(Datastore.trackWalkerTransform)
+        ),
+        Datastore.trackEntityTransform:ToWorld(Datastore.tDatapoints[#Datastore.tDatapoints].transform)
+    )
 end
 
 function protrackManager.StartTrackCamera(self)
@@ -169,6 +177,7 @@ function protrackManager.StartTrackCamera(self)
     end
 
     if not self.inCamera then
+        Gizmo.SetMarkerVisible(false)
         Cam.StartRideCamera()
         self.inCamera = true
     end
@@ -176,6 +185,7 @@ end
 
 function protrackManager.StopTrackCamera(self)
     if self.inCamera then
+        Gizmo.SetMarkerVisible(true)
         Cam.StopRideCamera()
         self.inCamera = false
     end

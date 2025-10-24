@@ -36,6 +36,12 @@ function Utils.GetFirstCarTrackLocAndSpeed(rideID)
     return nil, nil
 end
 
+function Utils.TrackTransformToTransformQ(trackTransform)
+    local transform = trackTransform:GetLocationTransform()
+    local rotation = Quaternion.FromYawPitchRoll(transform:GetRotation():ToYawPitchRoll())
+    return TransformQ.FromOrPos(rotation, transform:GetPos())
+end
+
 function Utils.WalkTrack(trackLoc, initSpeed, timestep)
     -- Use a different walker,
     -- to prevent polluting the other one.
@@ -56,7 +62,7 @@ function Utils.WalkTrack(trackLoc, initSpeed, timestep)
         -- logger:Info("Stepping with speed: " .. global.tostring(curSpeed))
 
         copyLocation:MoveLocation(distStepForward)
-        local transform = copyLocation:GetLocationTransform()
+        local transform = Utils.TrackTransformToTransformQ(copyLocation)
 
         if transform == nil then
             logger:Info("Exit! Transform was null")
@@ -79,12 +85,9 @@ function Utils.WalkTrack(trackLoc, initSpeed, timestep)
         local actualAccelWS = -((thisVelo - lastVelo) / timestep) - Vector3.YAxis * gravity
         local localAccelG = -transform:ToLocalDir(actualAccelWS) / gravity
 
-        local rotation = Quaternion.FromYawPitchRoll(transform:GetRotation():ToYawPitchRoll())
-        local localTransform = TransformQ.FromOrPos(rotation, thisPosition)
-
         dataPts[#dataPts + 1] = {
             g = localAccelG,
-            transform = localTransform,
+            transform = transform,
         }
         lastPosition = thisPosition
         lastVelo = thisVelo

@@ -12,12 +12,15 @@ local TransformQ = require("TransformQ")
 local mathUtils  = require("Common.mathUtils")
 
 
-local Gizmo       = {}
-Gizmo.Position_ID = nil
-Gizmo.VertG_ID    = nil
-Gizmo.LatG_ID     = nil
-Gizmo.LongG_ID    = nil
-Gizmo.Visible     = false
+local Gizmo         = {}
+Gizmo.Position_ID   = nil
+Gizmo.VertG_ID      = nil
+Gizmo.LatG_ID       = nil
+Gizmo.LongG_ID      = nil
+Gizmo.Reference_ID  = nil
+Gizmo.EndPos_ID     = nil
+Gizmo.Visible       = true
+Gizmo.MarkerVisible = true
 
 function Gizmo.InitGizmo()
     logger:Info("InitGizmo")
@@ -28,34 +31,47 @@ function Gizmo.InitGizmo()
     end
 
     local token = api.entity.CreateRequestCompletionToken()
-    Gizmo.Position_ID = api.entity.InstantiatePrefab(
-        "scenerygizmopivoton",
-        nil,
-        token,
-        TransformQ.Identity
+
+    Gizmo.Position_ID = Gizmo.SpawnGizmo(
+        "prefab_protrack_markergizmo",
+        token
     )
 
-    Gizmo.VertG_ID = api.entity.InstantiatePrefab(
+    Gizmo.Reference_ID = Gizmo.SpawnGizmo(
+        "prefab_protrack_referencepoint",
+        token
+    )
+
+    Gizmo.EndPos_ID = Gizmo.SpawnGizmo(
+        "prefab_protrack_endpoint",
+        token
+    )
+
+    Gizmo.VertG_ID = Gizmo.SpawnGizmo(
         "SceneryGizmo3AxisTranslateYOn",
-        nil,
-        token,
-        TransformQ.Identity
-    )
-    Gizmo.LatG_ID = api.entity.InstantiatePrefab(
-        "SceneryGizmo3AxisTranslateXOn",
-        nil,
-        token,
-        TransformQ.Identity
-    )
-    Gizmo.LongG_ID = api.entity.InstantiatePrefab(
-        "SceneryGizmo3AxisTranslateZOn",
-        nil,
-        token,
-        TransformQ.Identity
+        token
     )
 
-    Gizmo.Visible = true
+    Gizmo.LatG_ID = Gizmo.SpawnGizmo(
+        "SceneryGizmo3AxisTranslateXOn",
+        token
+    )
+
+    Gizmo.LongG_ID = Gizmo.SpawnGizmo(
+        "SceneryGizmo3AxisTranslateZOn",
+        token
+    )
+
     Gizmo.SetVisible(false)
+end
+
+function Gizmo.SpawnGizmo(gizmoName, token)
+    return api.entity.InstantiatePrefab(
+        gizmoName,
+        nil,
+        token,
+        TransformQ.Identity
+    )
 end
 
 function Gizmo.SetGizmoWithGScale(gizmo, worldTransform, invertAxisRotMethod, gScale)
@@ -72,18 +88,29 @@ function Gizmo.SetGizmoWithGScale(gizmo, worldTransform, invertAxisRotMethod, gS
 end
 
 function Gizmo.SetVisible(visible)
-    logger:Info("Set Visible")
+    Gizmo.SetMarkerVisible(visible)
     if Gizmo.Visible == visible then
-        logger:Info("Early return")
         return
     end
 
-    logger:Info("Setting gizmo to visible: ")
-    logger:Info(global.tostring(visible))
-    --api.model.SetHidden(Gizmo.VertG_ID, visible)
-    --api.model.SetHidden(Gizmo.LatG_ID, visible)
-    --api.model.SetHidden(Gizmo.LongG_ID, visible)
     Gizmo.Visible = visible
+
+    local scaleVisible = Gizmo.Visible and 1.0 or 0.0
+    api.transform.SetScale(Gizmo.Position_ID, scaleVisible)
+    api.transform.SetScale(Gizmo.Reference_ID, scaleVisible)
+    api.transform.SetScale(Gizmo.EndPos_ID, scaleVisible)
+end
+
+function Gizmo.SetMarkerVisible(visible)
+    if Gizmo.MarkerVisible == visible then
+        return
+    end
+
+    Gizmo.MarkerVisible = visible
+    local scaleVisible = visible and 1.0 or 0.0
+    api.transform.SetScale(Gizmo.VertG_ID, scaleVisible)
+    api.transform.SetScale(Gizmo.LatG_ID, scaleVisible)
+    api.transform.SetScale(Gizmo.LongG_ID, scaleVisible)
 end
 
 function Gizmo.SetData(transformWorld, gForceVecLocal)
@@ -95,6 +122,10 @@ function Gizmo.SetData(transformWorld, gForceVecLocal)
         return
     end
 
+    if not Gizmo.MarkerVisible then
+        return
+    end
+
     -- idk why but in "understanding" vertical g should be inverted
     -- because i guess a negative acceleration makes less sense in our ref frame?
     api.transform.SetTransform(Gizmo.Position_ID, transformWorld)
@@ -102,9 +133,16 @@ function Gizmo.SetData(transformWorld, gForceVecLocal)
     Gizmo.SetGizmoWithGScale(Gizmo.LatG_ID, transformWorld, "RotatedAroundU", gForceVecLocal:GetX())
     Gizmo.SetGizmoWithGScale(Gizmo.LongG_ID, transformWorld, "RotatedAroundU", gForceVecLocal:GetZ())
 
-    logger:Info(global.tostring(gForceVecLocal))
-
     -- Set mags of all based on vec data
+end
+
+function Gizmo.SetMarkers(referenceTransformWorld, endTransformWorld)
+    api.transform.SetTransform(Gizmo.Reference_ID, referenceTransformWorld)
+    api.transform.SetTransform(Gizmo.EndPos_ID, endTransformWorld)
+end
+
+function Gizmo.UpdateVisibility()
+
 end
 
 return Gizmo
