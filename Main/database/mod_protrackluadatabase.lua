@@ -38,6 +38,11 @@ end
 function LuaDB.Init()
     require("forgeutils.moddb").RegisterMod("Mod_ProTrack", 1.0)
     logger:Info("Mod_ProTrack called Init()!")
+    api.ui2.MapResources("ProTrackUI")
+end
+
+LuaDB.Shutdown = function()
+    api.ui2.UnmapResources("ProTrackUI")
 end
 
 LuaDB.tManagers = {

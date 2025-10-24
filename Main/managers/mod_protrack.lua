@@ -103,6 +103,8 @@ end
 
 function protrackManager.StartEditMode(self, trackEditMode)
     logger:Info("Starting edit mode!")
+    --- TODO: Add Ui initialisation here
+
     self:ZeroData()
 
     logger:Info("Zeroed")
@@ -200,6 +202,8 @@ function protrackManager.StartTrackCamera(self)
     if not self.inCamera then
         Gizmo.SetMarkerGizmosVisible(false)
         Cam.StartRideCamera()
+        --- TODO: Add force ui show here
+        protrackManager.overlayUI:Show()
         self.inCamera = true
     end
 end
@@ -208,6 +212,8 @@ function protrackManager.StopTrackCamera(self)
     if self.inCamera then
         Gizmo.SetMarkerGizmosVisible(true)
         Cam.StopRideCamera()
+        --- TODO: Add force ui hide here
+        protrackManager.overlayUI:Hide()
         self.inCamera = false
     end
 end

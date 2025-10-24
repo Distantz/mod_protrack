@@ -41,7 +41,7 @@ class PPUIPkgFileInfo():
 class PPUIPkgFile():
 
     def __init__(self, path, mode='r'):
-        self.basic = 'Mod_ModMenu/Main'
+        self.basic = 'Mod_ProTrack/Main'
         self.mode  = mode
         self.files = []
         self.icons = []
