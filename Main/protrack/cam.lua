@@ -36,7 +36,7 @@ function Cam.StartRideCamera()
 end
 
 function Cam.StopRideCamera()
-    api.world.GetWorldAPIs().CameraModeManager:RequestMode(Cam.LastModeName, Cam.LastConfig)
+    api.world.GetWorldAPIs().CameraModeManager:RequestDefaultMode()
 end
 
 return Cam;

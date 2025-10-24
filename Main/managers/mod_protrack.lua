@@ -11,6 +11,7 @@ local global = _G
 local api = global.api
 local pairs = global.pairs
 local require = global.require
+local mathUtils = require "Common.mathUtils"
 
 ---@diagnostic disable-next-line: deprecated
 local module = global.module
@@ -19,15 +20,24 @@ local Object = require("Common.object")
 local Mutators = require("Environment.ModuleMutators")
 local Vector3 = require("Vector3")
 local Utils = require("protrack.utils")
+local Gizmo = require("protrack.displaygizmo")
 local Cam = require("protrack.cam")
 local Datastore = require("protrack.datastore")
+local InputEventHandler = require("Components.Input.InputEventHandler")
 local logger = require("forgeutils.logger").Get("ProTrackManager")
 
 --/ Main class definition
 ---@class protrackManager
 local protrackManager = module(..., Mutators.Manager())
-
 protrackManager.dt = 0
+protrackManager.trackEditMode = nil
+protrackManager.inCamera = false
+protrackManager.inputEventHandler = nil
+
+---@type WorldAPIs_InputManager
+protrackManager.inputManagerAPI = nil
+protrackManager.tWorldAPIs = nil
+
 --
 -- @Brief Init function for this manager
 -- @param _tProperties  a table with initialization data for all the managers.
@@ -41,115 +51,6 @@ function protrackManager.Init(self, _tProperties, _tEnvironment)
     logger:Info("Init")
 end
 
--- printTable: prints any Lua value (table, userdata, primitive)
--- All standard library calls are prefixed with `global`.
-local function printTable(value)
-    -- internal recursive printer
-    local function printValue(v, indent, seen)
-        indent = indent or 0
-        seen = seen or {}
-
-        local prefix = global.string.rep("  ", indent)
-        local vType = global.type(v)
-
-        if vType == "table" then
-            if seen[v] then
-                logger:Info(prefix .. "[table] (already seen)")
-                return
-            end
-            seen[v] = true
-
-            logger:Info(prefix .. "{")
-            for k, val in global.pairs(v) do
-                local okk, ks = global.pcall(global.tostring, k)
-                ks = okk and ks or "[unprintable key]"
-                -- print key on same line then nested value
-                logger:Info(prefix .. "  " .. ks .. " =")
-                printValue(val, indent + 2, seen)
-            end
-            logger:Info(prefix .. "}")
-        elseif vType == "userdata" then
-            if seen[v] then
-                logger:Info(prefix .. "[userdata] (already seen)")
-                return
-            end
-            seen[v] = true
-
-            -- safe tostring
-            local ok, s = global.pcall(global.tostring, v)
-            s = ok and s or "[unprintable userdata]"
-
-            -- try to name it from metatable.__name if present
-            local mt = (global.getmetatable and global.getmetatable(v)) or nil
-            local name = (mt and mt.__name) or nil
-            if name then
-                logger:Info(prefix .. "<" .. name .. "> " .. s)
-            else
-                logger:Info(prefix .. s)
-            end
-
-            -- If metatable.__index is a table, print it (many userdata expose methods via __index)
-            if mt then
-                local index = mt.__index
-                if index and global.type(index) == "table" then
-                    if not seen[index] then
-                        logger:Info(prefix .. "metatable.__index = {")
-                        seen[index] = true
-                        for k, val in global.pairs(index) do
-                            local okk, ks = global.pcall(global.tostring, k)
-                            ks = okk and ks or "[unprintable key]"
-                            logger:Info(prefix .. "  " .. ks .. " =")
-                            printValue(val, indent + 2, seen)
-                        end
-                        logger:Info(prefix .. "}")
-                    else
-                        logger:Info(prefix .. "metatable.__index = [already seen]")
-                    end
-                end
-            end
-        else
-            -- primitives or functions etc.
-            local ok, s = global.pcall(global.tostring, v)
-            s = ok and s or "[unprintable value]"
-            logger:Info(prefix .. s)
-        end
-    end
-
-    -- start printing with a fresh seen table
-    printValue(value, 0, {})
-end
-
-
-local function convertExportSplToLuaTable(string)
-    local items = {}
-
-    -- Evil code.
-    for item_block in string:gmatch("<item>(.-)</item>") do
-        local pos_x, pos_y, pos_z = item_block:match('<Pos x="([%d%.%-]+)" y="([%d%.%-]+)" z="([%d%.%-]+)"')
-        local rot_x, rot_y, rot_z = item_block:match('<YPR x="([%d%.%-]+)" y="([%d%.%-]+)" z="([%d%.%-]+)"')
-        local twist = item_block:match("<Twist>([%d%.%-]+)</Twist>")
-
-        local item = {
-            pos = Vector3:new(
-                global.tonumber(pos_x),
-                global.tonumber(pos_y),
-                global.tonumber(pos_z)
-            ),
-            rot = Vector3:new(
-                global.tonumber(rot_x),
-                global.tonumber(rot_y),
-                global.tonumber(rot_z)
-            ),
-            twist = global.tonumber(twist),
-        }
-
-        global.table.insert(items, item)
-    end
-    return items
-end
-
-
-
 --
 -- @Brief Activate function for this manager
 --
@@ -160,97 +61,157 @@ end
 function protrackManager.Activate(self)
     -- Our entry point simply calls inject on the submode override file:
     logger:Info("Injecting...")
-
     Cam.GetPreviewCameraEntity()
+    Gizmo.InitGizmo()
+    Gizmo.SetVisible(false)
+    logger:Info("Done gizmo setup")
 
-    local trackeditsel = require("Editors.Track.TrackEditSelection")
-    local baseDeleteSection = trackeditsel.DeleteSelection
+    local trackEditMode = require("Editors.Track.TrackEditMode")
+    local baseTransitionIn = trackEditMode.TransitionIn
+    trackEditMode.TransitionIn = function(slf, _startTrack, _startSelection, _bDontRequestTrainRespawn)
+        baseTransitionIn(slf, _startTrack, _startSelection, _bDontRequestTrainRespawn)
+        self:StartEditMode(slf)
+    end
 
-    trackeditsel.DeleteSelection = function(slf)
-        -- Hook ours
-        logger:Info("DeleteSelection hook called!")
-
-        -- printTable(slf.selection)
-
-        -- local sData = api.track.DebugExportSelection(slf.selection, "test_export")
-        -- local dps = convertExportSplToLuaTable(sData)
-
-        -- local startPt = slf.selection:GetSelectionStartSplineJoinPoint(false)
-        -- local endPt = slf.selection:GetSelectionEndSplineJoinPoint(false)
-
-        -- logger:Info("startPt")
-        -- printTable(startPt)
-        -- logger:Info("endPt")
-        -- printTable(endPt)
-
-        local transforms = {}
-
-        local track = slf.selection:GetTrack()
-        local length = slf.selection:GetLength()
-
-        local trackEntity = api.track.GetTrackEntity(track)
-        local trackEntityTrans = api.transform.GetTransform(trackEntity)
-        local loc, speed = Utils.GetFirstCarTrackLocAndSpeed(trackEntity)
-
-        Datastore.tDatapoints = Utils.WalkTrack(loc, speed, Datastore.tSimulationDelta)
-        Datastore.trackTransform = trackEntityTrans
-
-        Cam.StartRideCamera()
-        protrackManager.dt = 0
-
-
-        -- for i = 1, length do
-        --     logger:Info("Doing I " .. i)
-
-        --     local section = slf.selection:GetSection(i)
-
-        --     if i == 1 then
-        --         transforms[1] = (api.track.GetTrackLocationFromSection(track, section, 1, 1.0))
-        --             :GetLocationTransform()
-        --     end
-
-        --     local trackLoc = (api.track.GetTrackLocationFromSection(track, section, 1, 0.0))
-
-        --     if trackLoc ~= nil then
-        --         transforms[#transforms + 1] = trackLoc:GetLocationTransform()
-        --     end
-        -- end
-
-        -- for i, transform in global.ipairs(transforms) do
-        --     logger:Info("I = " .. i)
-        --     logger:Info(global.tostring(transform))
-        -- end
-
-        -- Call original
-        baseDeleteSection(slf)
-
-        -- Recreate original lol
+    local baseTransitionOut = trackEditMode.TransitionOut
+    trackEditMode.TransitionOut = function(slf)
+        baseTransitionOut(slf)
+        self:EndEditMode()
     end
 
     logger:Info("Inserted hooks")
 end
 
---
--- @Brief Deactivate function for this manager
---
--- Deactivate is called when the world is shutting down or closing. Use this function
--- to perform any deinitialization that still requires access to the current world data
--- or other Managers.
---
-function protrackManager.Deactivate(self)
+function protrackManager.ZeroData(self)
+    self:StopTrackCamera()
+    --Gizmo.SetVisible(false)
+    self.trackEditMode = nil
+    self.dt = 0
+    self.tWorldAPIs = nil
+    self.inputManagerAPI = nil
+    Datastore.tDatapoints = nil
+    Datastore.trackEntityTransform = nil
+    Datastore.trackWalkerTransform = nil
+    Datastore.trackWalkerSpeed = nil
+end
 
+function protrackManager.StartEditMode(self, trackEditMode)
+    logger:Info("Starting edit mode!")
+    self:ZeroData()
+
+    logger:Info("Zeroed")
+    self.trackEditMode = trackEditMode
+    self.tWorldAPIs = api.world.GetWorldAPIs()
+    self.inputManagerAPI = self.tWorldAPIs.InputManager
+
+    -- Our api doesn't contain this (defined by object base) so we need a pragma
+    ---@diagnostic disable-next-line: undefined-field
+    self.inputEventHandler = InputEventHandler:new()
+    self.inputEventHandler:Init()
+
+    self.inputEventHandler:AddKeyPressedEvent("RotateObject", function()
+        self:NewTrainPosition()
+        return true
+    end)
+
+    self.inputEventHandler:AddKeyPressedEvent("AdvancedMove", function()
+        self:NewWalk()
+        return true
+    end)
+
+    self.inputEventHandler:AddKeyPressedEvent("ScaleObject", function()
+        -- function num : 0_4_4 , upvalues : self
+        logger:Info("Toggle ride camera!")
+
+        if not self.inCamera then
+            self:StartTrackCamera()
+        else
+            self:StopTrackCamera()
+        end
+        return true
+    end)
+end
+
+function protrackManager.EndEditMode(self)
+    self:ZeroData()
+end
+
+function protrackManager.NewTrainPosition(self)
+    logger:Info("NewTrainPosition()")
+    logger:Info("trying to get trackentity")
+    local trackEntity = self.trackEditMode.tActiveData:GetTrackEntity()
+    logger:Info("got it")
+    Datastore.trackEntityTransform = api.transform.GetTransform(trackEntity)
+    Datastore.trackWalkerTransform, Datastore.trackWalkerSpeed = Utils.GetFirstCarTrackLocAndSpeed(trackEntity)
+    self:NewWalk()
+end
+
+function protrackManager.NewWalk(self)
+    logger:Info("NewWalk()")
+    if Datastore.trackWalkerTransform == nil then
+        return
+    end
+
+    if Datastore.trackWalkerSpeed == nil then
+        return
+    end
+
+    Datastore.tDatapoints = Utils.WalkTrack(
+        Datastore.trackWalkerTransform,
+        Datastore.trackWalkerSpeed,
+        Datastore.tSimulationDelta
+    )
+end
+
+function protrackManager.StartTrackCamera(self)
+    if Datastore.tDatapoints == nil then
+        return
+    end
+
+    if not self.inCamera then
+        Cam.StartRideCamera()
+        self.inCamera = true
+    end
+end
+
+function protrackManager.StopTrackCamera(self)
+    if self.inCamera then
+        Cam.StopRideCamera()
+        self.inCamera = false
+    end
 end
 
 function protrackManager.Advance(self, deltaTime)
-    if #Datastore.tDatapoints > 0 then
-        protrackManager.dt = protrackManager.dt + deltaTime
-        local pt = Datastore.SampleDatapointAtTime(protrackManager.dt)
-        local wsTrans = Datastore.trackTransform:ToWorld(pt.transform)
+    if self.inputEventHandler == nil or self.inputManagerAPI == nil then
+        return
+    end
 
-        logger:Info("G force: " .. global.tostring(pt.g))
+    self.inputEventHandler:CheckEvents()
 
+    -- Work out direction
+    local direction = 0.0
+    if (self.inputManagerAPI:GetKeyDown("DecreaseBrushIntensity")) then
+        direction = direction - 1.0
+    end
+    if (self.inputManagerAPI:GetKeyDown("IncreaseBrushIntensity")) then
+        direction = direction + 1.0
+    end
+
+    -- Set gizmo visiblity
+    --Gizmo.Visible(not self.inCamera)
+
+    if Datastore.tDatapoints ~= nil and #Datastore.tDatapoints > 0 then
+        local timestep = api.time.GetDeltaTimeUnscaled()
+        self.dt = self.dt + timestep * direction
+
+        -- clamp dt to make it stay in bounds
+        self.dt = mathUtils.Clamp(self.dt, 0, Datastore.GetTimeLength())
+
+        local pt = Datastore.SampleDatapointAtTime(self.dt)
+        local wsTrans = Datastore.trackEntityTransform:ToWorld(pt.transform)
         api.transform.SetPosition(Cam.PreviewCameraEntity, wsTrans:GetPos())
         api.transform.SetOrientation(Cam.PreviewCameraEntity, wsTrans:GetOr())
+        Gizmo.SetData(wsTrans, pt.g)
     end
 end
 

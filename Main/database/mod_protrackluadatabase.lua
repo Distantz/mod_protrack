@@ -4,10 +4,11 @@
 -- You can see that happening here with the table local.
 local global = _G
 local table = global.table
+local MainButtonPrompts = require("Database.MainButtonPrompts")
 
 -- Since api isn't default lua, this has a warning.
 -- Disable it so we don't get weird errors if using LuaCATS.
----@diagnostic disable-next-line: undefined-field
+---@type Api
 local api = global.api
 
 -- Optional: ForgeUtils has logger support! You should use it if you have ForgeUtils installed #plug

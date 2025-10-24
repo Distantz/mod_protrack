@@ -9,10 +9,12 @@ local Quaternion = require("Quaternion")
 local TransformQ = require("TransformQ")
 
 local Datastore = {}
+Datastore.tSimulationDelta = 0.1
 
 Datastore.tDatapoints = {}
-Datastore.tSimulationDelta = 0.1
-Datastore.trackTransform = nil
+Datastore.trackEntityTransform = nil
+Datastore.trackWalkerSpeed = nil
+Datastore.trackWalkerTransform = nil
 
 function Datastore.SampleDatapointAtTime(time)
     -- clamp time
