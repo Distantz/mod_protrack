@@ -94,9 +94,7 @@ function protrackManager.ZeroData(self)
     self.tWorldAPIs = nil
     self.inputManagerAPI = nil
     Datastore.tDatapoints = nil
-    Datastore.trackEntityTransform = nil
-    Datastore.trackWalkerTransform = nil
-    Datastore.trackWalkerSpeed = nil
+    Datastore.trackWalkerOrigin = nil
 end
 
 function protrackManager.StartEditMode(self, trackEditMode)
@@ -146,32 +144,37 @@ function protrackManager.NewTrainPosition(self)
     local trackEntity = self.trackEditMode.tActiveData:GetTrackEntity()
     logger:Info("got it")
     Datastore.trackEntityTransform = api.transform.GetTransform(trackEntity)
-    Datastore.trackWalkerTransform, Datastore.trackWalkerSpeed = Utils.GetFirstCarTrackLocAndSpeed(trackEntity)
+    Datastore.trackWalkerOrigin = Utils.GetFirstCarData(trackEntity)
     self:NewWalk()
 end
 
 function protrackManager.NewWalk(self)
     logger:Info("NewWalk()")
-    if Datastore.trackWalkerTransform == nil then
-        return
-    end
-
-    if Datastore.trackWalkerSpeed == nil then
+    if Datastore.trackWalkerOrigin == nil then
         return
     end
 
     Datastore.tDatapoints = Utils.WalkTrack(
-        Datastore.trackWalkerTransform,
-        Datastore.trackWalkerSpeed,
+        Datastore.trackWalkerOrigin,
         Datastore.tSimulationDelta
     )
+
+    -- if nil, our point is BS.
+    -- Need to clear everything
+
+    if not Datastore.HasData() then
+        Gizmo.SetMarkerGizmosVisible(false)
+        Gizmo.SetTrackGizmosVisible(false)
+        self:StopTrackCamera()
+        return
+    end
 
     -- Turn it on
     Gizmo.SetMarkerGizmosVisible(true)
     Gizmo.SetTrackGizmosVisible(not self.inCamera)
     Gizmo.SetStartEndMarkers(
         Datastore.trackEntityTransform:ToWorld(
-            Utils.TrackTransformToTransformQ(Datastore.trackWalkerTransform)
+            Utils.TrackTransformToTransformQ(Datastore.trackWalkerOrigin.transform)
         ),
         Datastore.trackEntityTransform:ToWorld(Datastore.tDatapoints[#Datastore.tDatapoints].transform)
     )
@@ -227,7 +230,7 @@ function protrackManager.Advance(self, deltaTime)
     -- Set gizmo visiblity
     --Gizmo.Visible(not self.inCamera)
 
-    if Datastore.tDatapoints ~= nil and #Datastore.tDatapoints > 0 then
+    if Datastore.HasData() then
         local timestep = api.time.GetDeltaTimeUnscaled()
         self.dt = self.dt + timestep * direction
 
