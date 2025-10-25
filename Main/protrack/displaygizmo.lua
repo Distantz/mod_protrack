@@ -1,26 +1,36 @@
-local global     = _G
+local global              = _G
 ---@type Api
 ---@diagnostic disable-next-line: undefined-field
-local api        = global.api
-local pairs      = global.pairs
-local require    = global.require
-local logger     = require("forgeutils.logger").Get("ProTrackGizmo")
-local Vector3    = require("Vector3")
-local Quaternion = require("Quaternion")
-local Utils      = require("protrack.utils")
-local TransformQ = require("TransformQ")
-local mathUtils  = require("Common.mathUtils")
+local api                 = global.api
+local pairs               = global.pairs
+local table               = require("Common.tableplus")
+local coroutine           = global.coroutine
+local require             = global.require
+local logger              = require("forgeutils.logger").Get("ProTrackGizmo")
+local Vector3             = require("Vector3")
+local Quaternion          = require("Quaternion")
+local Utils               = require("protrack.utils")
+local TransformQ          = require("TransformQ")
+local mathUtils           = require("Common.mathUtils")
 
+local Gizmo               = {}
+Gizmo.Marker_ID           = nil
+Gizmo.VertG_ID            = nil
+Gizmo.LatG_ID             = nil
+Gizmo.LongG_ID            = nil
+Gizmo.Reference_ID        = nil
+Gizmo.EndPos_ID           = nil
 
-local Gizmo         = {}
-Gizmo.Position_ID   = nil
-Gizmo.VertG_ID      = nil
-Gizmo.LatG_ID       = nil
-Gizmo.LongG_ID      = nil
-Gizmo.Reference_ID  = nil
-Gizmo.EndPos_ID     = nil
-Gizmo.Visible       = true
-Gizmo.MarkerVisible = true
+Gizmo.Visible             = true
+Gizmo.MarkerVisible       = true
+
+-- Gizmo marker vars
+Gizmo.MarkerTransformWS   = nil
+Gizmo.MarkerGForce        = nil
+
+-- Gizmo reference vars
+Gizmo.StartPosTransformWS = nil
+Gizmo.EndPosTransformWS   = nil
 
 function Gizmo.InitGizmo()
     logger:Info("InitGizmo")
@@ -32,7 +42,7 @@ function Gizmo.InitGizmo()
 
     local token = api.entity.CreateRequestCompletionToken()
 
-    Gizmo.Position_ID = Gizmo.SpawnGizmo(
+    Gizmo.Marker_ID = Gizmo.SpawnGizmo(
         "prefab_protrack_markergizmo",
         token
     )
@@ -62,7 +72,17 @@ function Gizmo.InitGizmo()
         token
     )
 
-    Gizmo.SetVisible(false)
+    logger:Info("Finished Init Gizmo.")
+
+    -- Return gizmo init coroutine to run
+    return coroutine.create(function()
+        -- Wait for request
+        while token and not api.entity.HaveRequestsCompleted(token) do
+            coroutine.yield(false)
+        end
+
+        return true
+    end)
 end
 
 function Gizmo.SpawnGizmo(gizmoName, token)
@@ -74,75 +94,79 @@ function Gizmo.SpawnGizmo(gizmoName, token)
     )
 end
 
-function Gizmo.SetGizmoWithGScale(gizmo, worldTransform, invertAxisRotMethod, gScale)
-    api.transform.SetPosition(gizmo, worldTransform:GetPos())
-
-    local orientation = worldTransform:GetOr()
-    if mathUtils.Sign(gScale) < 0 then
+function Gizmo.PutAxisGizmo(gizmo, transform, axisScale, invertAxisRotMethod)
+    api.transform.SetPosition(gizmo, transform:GetPos())
+    local orientation = transform:GetOr()
+    if mathUtils.Sign(axisScale) < 0 then
         -- flip 180 deg
         orientation = orientation[invertAxisRotMethod](orientation, math.pi)
     end
-
     api.transform.SetOrientation(gizmo, orientation)
-    api.transform.SetScale(gizmo, math.abs(gScale))
+    api.transform.SetScale(gizmo, math.abs(axisScale))
 end
 
-function Gizmo.SetVisible(visible)
-    Gizmo.SetMarkerVisible(visible)
+function Gizmo.PutGizmoAtTransform(gizmo, transform, visible)
+    if visible ~= nil and visible and transform ~= nil then
+        api.transform.SetTransform(gizmo, table.copy(transform))
+        -- not the same thing for some god damn reason.
+        api.transform.SetScale(gizmo, 1)
+    else
+        -- set scale to 0 to hide
+        api.transform.SetScale(gizmo, 0)
+    end
+end
+
+function Gizmo.SetTrackGizmosVisible(visible)
     if Gizmo.Visible == visible then
         return
     end
 
     Gizmo.Visible = visible
-
-    local scaleVisible = Gizmo.Visible and 1.0 or 0.0
-    api.transform.SetScale(Gizmo.Position_ID, scaleVisible)
-    api.transform.SetScale(Gizmo.Reference_ID, scaleVisible)
-    api.transform.SetScale(Gizmo.EndPos_ID, scaleVisible)
+    Gizmo.RegenerateGizmo()
 end
 
-function Gizmo.SetMarkerVisible(visible)
+function Gizmo.SetMarkerGizmosVisible(visible)
     if Gizmo.MarkerVisible == visible then
         return
     end
 
     Gizmo.MarkerVisible = visible
-    local scaleVisible = visible and 1.0 or 0.0
-    api.transform.SetScale(Gizmo.VertG_ID, scaleVisible)
-    api.transform.SetScale(Gizmo.LatG_ID, scaleVisible)
-    api.transform.SetScale(Gizmo.LongG_ID, scaleVisible)
+    Gizmo.RegenerateMarkerGizmos()
 end
 
-function Gizmo.SetData(transformWorld, gForceVecLocal)
-    if Gizmo.VertG_ID == nil then
-        return
-    end
-
-    if gForceVecLocal == nil then
-        return
-    end
-
-    if not Gizmo.MarkerVisible then
-        return
-    end
-
-    -- idk why but in "understanding" vertical g should be inverted
-    -- because i guess a negative acceleration makes less sense in our ref frame?
-    api.transform.SetTransform(Gizmo.Position_ID, transformWorld)
-    Gizmo.SetGizmoWithGScale(Gizmo.VertG_ID, transformWorld, "RotatedAroundR", -gForceVecLocal:GetY())
-    Gizmo.SetGizmoWithGScale(Gizmo.LatG_ID, transformWorld, "RotatedAroundU", gForceVecLocal:GetX())
-    Gizmo.SetGizmoWithGScale(Gizmo.LongG_ID, transformWorld, "RotatedAroundU", gForceVecLocal:GetZ())
-
-    -- Set mags of all based on vec data
+function Gizmo.SetMarkerData(markerTransform, gForceVecLocal)
+    Gizmo.MarkerTransformWS = table.copy(markerTransform)
+    Gizmo.MarkerGForce = table.copy(gForceVecLocal)
+    Gizmo.RegenerateMarkerGizmos()
 end
 
-function Gizmo.SetMarkers(referenceTransformWorld, endTransformWorld)
-    api.transform.SetTransform(Gizmo.Reference_ID, referenceTransformWorld)
-    api.transform.SetTransform(Gizmo.EndPos_ID, endTransformWorld)
+function Gizmo.SetStartEndMarkers(startPosition, endPosition)
+    Gizmo.StartPosTransformWS = table.copy(startPosition)
+    Gizmo.EndPosTransformWS = table.copy(endPosition)
+    Gizmo.RegenerateGizmo()
 end
 
-function Gizmo.UpdateVisibility()
+function Gizmo.RegenerateGizmo()
+    Gizmo.PutGizmoAtTransform(Gizmo.Reference_ID, Gizmo.StartPosTransformWS, Gizmo.Visible)
+    Gizmo.PutGizmoAtTransform(Gizmo.EndPos_ID, Gizmo.EndPosTransformWS, Gizmo.Visible)
 
+    -- Set marker and G-Force position gizmos.
+    Gizmo.RegenerateMarkerGizmos()
+end
+
+function Gizmo.RegenerateMarkerGizmos()
+    local displayMarker = Gizmo.Visible and Gizmo.MarkerVisible
+
+    Gizmo.PutGizmoAtTransform(Gizmo.Marker_ID, Gizmo.MarkerTransformWS, displayMarker)
+    if displayMarker and Gizmo.MarkerGForce ~= nil then
+        Gizmo.PutAxisGizmo(Gizmo.VertG_ID, Gizmo.MarkerTransformWS, -Gizmo.MarkerGForce:GetY(), "RotatedAroundR")
+        Gizmo.PutAxisGizmo(Gizmo.LatG_ID, Gizmo.MarkerTransformWS, Gizmo.MarkerGForce:GetX(), "RotatedAroundU")
+        Gizmo.PutAxisGizmo(Gizmo.LongG_ID, Gizmo.MarkerTransformWS, Gizmo.MarkerGForce:GetZ(), "RotatedAroundU")
+    else
+        Gizmo.PutGizmoAtTransform(Gizmo.VertG_ID, Gizmo.MarkerTransformWS, false)
+        Gizmo.PutGizmoAtTransform(Gizmo.LatG_ID, Gizmo.MarkerTransformWS, false)
+        Gizmo.PutGizmoAtTransform(Gizmo.LongG_ID, Gizmo.MarkerTransformWS, false)
+    end
 end
 
 return Gizmo

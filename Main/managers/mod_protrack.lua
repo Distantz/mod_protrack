@@ -10,6 +10,7 @@ local global = _G
 ---@type Api
 local api = global.api
 local pairs = global.pairs
+local coroutine = global.coroutine
 local require = global.require
 local mathUtils = require "Common.mathUtils"
 
@@ -38,6 +39,8 @@ protrackManager.inputEventHandler = nil
 protrackManager.inputManagerAPI = nil
 protrackManager.tWorldAPIs = nil
 
+protrackManager.gizmoInitCoroutine = nil
+
 --
 -- @Brief Init function for this manager
 -- @param _tProperties  a table with initialization data for all the managers.
@@ -62,8 +65,7 @@ function protrackManager.Activate(self)
     -- Our entry point simply calls inject on the submode override file:
     logger:Info("Injecting...")
     Cam.GetPreviewCameraEntity()
-    Gizmo.InitGizmo()
-    Gizmo.SetVisible(false)
+    self.gizmoInitCoroutine = Gizmo.InitGizmo()
     logger:Info("Done gizmo setup")
 
     local trackEditMode = require("Editors.Track.TrackEditMode")
@@ -83,6 +85,8 @@ function protrackManager.Activate(self)
 end
 
 function protrackManager.ZeroData(self)
+    Gizmo.SetMarkerGizmosVisible(false)
+    Gizmo.SetTrackGizmosVisible(false)
     self:StopTrackCamera()
     --Gizmo.SetVisible(false)
     self.trackEditMode = nil
@@ -162,8 +166,10 @@ function protrackManager.NewWalk(self)
         Datastore.tSimulationDelta
     )
 
-    Gizmo.SetVisible(true)
-    Gizmo.SetMarkers(
+    -- Turn it on
+    Gizmo.SetMarkerGizmosVisible(true)
+    Gizmo.SetTrackGizmosVisible(not self.inCamera)
+    Gizmo.SetStartEndMarkers(
         Datastore.trackEntityTransform:ToWorld(
             Utils.TrackTransformToTransformQ(Datastore.trackWalkerTransform)
         ),
@@ -177,7 +183,7 @@ function protrackManager.StartTrackCamera(self)
     end
 
     if not self.inCamera then
-        Gizmo.SetMarkerVisible(false)
+        Gizmo.SetMarkerGizmosVisible(false)
         Cam.StartRideCamera()
         self.inCamera = true
     end
@@ -185,13 +191,24 @@ end
 
 function protrackManager.StopTrackCamera(self)
     if self.inCamera then
-        Gizmo.SetMarkerVisible(true)
+        Gizmo.SetMarkerGizmosVisible(true)
         Cam.StopRideCamera()
         self.inCamera = false
     end
 end
 
 function protrackManager.Advance(self, deltaTime)
+    -- Handle gizmo init.
+    if self.gizmoInitCoroutine ~= nil then
+        coroutine.resume(self.gizmoInitCoroutine)
+        if coroutine.status(self.gizmoInitCoroutine) == "dead" then
+            logger:Info("Regeneration complete")
+            Gizmo.SetMarkerGizmosVisible(false)
+            Gizmo.SetTrackGizmosVisible(false)
+            self.gizmoInitCoroutine = nil
+        end
+    end
+
     if self.inputEventHandler == nil or self.inputManagerAPI == nil then
         return
     end
@@ -221,7 +238,8 @@ function protrackManager.Advance(self, deltaTime)
         local wsTrans = Datastore.trackEntityTransform:ToWorld(pt.transform)
         api.transform.SetPosition(Cam.PreviewCameraEntity, wsTrans:GetPos())
         api.transform.SetOrientation(Cam.PreviewCameraEntity, wsTrans:GetOr())
-        Gizmo.SetData(wsTrans, pt.g)
+
+        Gizmo.SetMarkerData(wsTrans, pt.g)
     end
 end
 
