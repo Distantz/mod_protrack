@@ -45,12 +45,22 @@ LuaDB.tManagers = {
     },
 }
 
--- @brief Add
 function LuaDB.AddLuaManagers(_fnAdd)
     local tData = LuaDB.tManagers
     for sEnvironmentName, tParams in pairs(tData) do
         _fnAdd(sEnvironmentName, tParams)
     end
+end
+
+function LuaDB.AddWithFile(filename, _fnAdd)
+    _fnAdd(filename, require(filename).GetRoot())
+end
+
+function LuaDB.AddLuaPrefabs(_fnAdd)
+    logger:Info("Adding prefabs!")
+    LuaDB.AddWithFile("prefab_protrack_endpoint", _fnAdd)
+    LuaDB.AddWithFile("prefab_protrack_markergizmo", _fnAdd)
+    LuaDB.AddWithFile("prefab_protrack_referencepoint", _fnAdd)
 end
 
 -- If using ForgeUtils, this method is called when database data should be inserted.
