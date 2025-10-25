@@ -13,10 +13,6 @@ local Quaternion = require("Quaternion")
 ---@field gforce any
 ---@field speed any
 
----@class TrackMeasurement
----@field g any
----@field transform any
-
 local Utils = {}
 
 --- Returns the current track origin data of a ride.
