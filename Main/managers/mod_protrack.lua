@@ -24,6 +24,7 @@ local Utils = require("protrack.utils")
 local Gizmo = require("protrack.displaygizmo")
 local Cam = require("protrack.cam")
 local Datastore = require("protrack.datastore")
+local FrictionHelper = require("database.frictionhelper")
 local InputEventHandler = require("Components.Input.InputEventHandler")
 local logger = require("forgeutils.logger").Get("ProTrackManager")
 
@@ -40,6 +41,9 @@ protrackManager.inputManagerAPI = nil
 protrackManager.tWorldAPIs = nil
 
 protrackManager.gizmoInitCoroutine = nil
+
+---@type FrictionValues
+protrackManager.frictionValues = nil
 
 --
 -- @Brief Init function for this manager
@@ -106,6 +110,12 @@ function protrackManager.StartEditMode(self, trackEditMode)
     self.tWorldAPIs = api.world.GetWorldAPIs()
     self.inputManagerAPI = self.tWorldAPIs.InputManager
 
+    local trackEntity = self.trackEditMode.tActiveData:GetTrackEntity()
+
+    ---@diagnostic disable-next-line: assign-type-mismatch
+    self.frictionValues = FrictionHelper.GetFrictionValues(api.track.GetTrackHolder(trackEntity))
+    Utils.PrintTable(self.frictionValues)
+
     -- Our api doesn't contain this (defined by object base) so we need a pragma
     ---@diagnostic disable-next-line: undefined-field
     self.inputEventHandler = InputEventHandler:new()
@@ -156,6 +166,7 @@ function protrackManager.NewWalk(self)
 
     Datastore.tDatapoints = Utils.WalkTrack(
         Datastore.trackWalkerOrigin,
+        self.frictionValues,
         Datastore.tSimulationDelta
     )
 
@@ -163,6 +174,7 @@ function protrackManager.NewWalk(self)
     -- Need to clear everything
 
     if not Datastore.HasData() then
+        Datastore.trackWalkerOrigin = nil
         Gizmo.SetMarkerGizmosVisible(false)
         Gizmo.SetTrackGizmosVisible(false)
         self:StopTrackCamera()

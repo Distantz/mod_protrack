@@ -4,7 +4,8 @@
 -- You can see that happening here with the table local.
 local global = _G
 local table = global.table
-local MainButtonPrompts = require("Database.MainButtonPrompts")
+local DBUtil = require("forgeutils.internal.database.databaseutils")
+local FrictionHelper = require("database.frictionhelper")
 
 -- Since api isn't default lua, this has a warning.
 -- Disable it so we don't get weird errors if using LuaCATS.
@@ -34,7 +35,7 @@ end
 
 -- This is one database function that can be called.
 -- If your mod works, you should see this print message in your log when using ACSEDebug!
-LuaDB.Init = function()
+function LuaDB.Init()
     require("forgeutils.moddb").RegisterMod("Mod_ProTrack", 1.0)
     logger:Info("Mod_ProTrack called Init()!")
 end
@@ -63,9 +64,9 @@ function LuaDB.AddLuaPrefabs(_fnAdd)
     LuaDB.AddWithFile("prefab_protrack_referencepoint", _fnAdd)
 end
 
--- If using ForgeUtils, this method is called when database data should be inserted.
--- Use the builders or bindings defined by ForgeUtils, or call your own SQL bindings in here.
--- function LuaDB.InsertToDBs() end
+function LuaDB.PreBuildPrefabs()
+    FrictionHelper.Bind()
+end
 
 -- We return the LuaDB down here so that when this file
 -- is required by the game, it returns the table with our functions.

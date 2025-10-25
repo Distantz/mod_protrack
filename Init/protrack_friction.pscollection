@@ -1,0 +1,18 @@
+<PscollectionRoot count="1" game="Planet Coaster 2">
+    <prepared_statements pool_type="4">
+        <preparedstatement arg_count="1">
+            <args pool_type="4">
+                <arg arg_type="3" arg_index="1" />
+            </args>
+            <statement_name>ProTrack_GetFrictionForTrain</statement_name>
+            <sql_query>SELECT
+                StaticFriction,
+                AirResistance,
+                DynamicFriction
+                FROM
+                Trains
+                WHERE
+                TrainID = ?1;</sql_query>
+        </preparedstatement>
+    </prepared_statements>
+</PscollectionRoot>
