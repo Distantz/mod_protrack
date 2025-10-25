@@ -60,9 +60,10 @@ end
 
 --- Walks the track. Returns datapoints.
 ---@param trackOriginData TrackOrigin The origin to walk from.
+---@param frictionValues FrictionValues The friction values to use.
 ---@param timestep number The timestep of the simulation.
 ---@return TrackMeasurement[]?
-function Utils.WalkTrack(trackOriginData, timestep)
+function Utils.WalkTrack(trackOriginData, frictionValues, timestep)
     if trackOriginData == nil then
         logger:Info("Exit! Starting point is invalid. Origin is nil.")
         return nil
