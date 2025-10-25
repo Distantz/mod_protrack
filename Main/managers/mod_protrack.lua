@@ -114,6 +114,7 @@ function protrackManager.StartEditMode(self, trackEditMode)
 
     ---@diagnostic disable-next-line: assign-type-mismatch
     self.frictionValues = FrictionHelper.GetFrictionValues(api.track.GetTrackHolder(trackEntity))
+    Utils.PrintTable(self.frictionValues)
 
     -- Our api doesn't contain this (defined by object base) so we need a pragma
     ---@diagnostic disable-next-line: undefined-field

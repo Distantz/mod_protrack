@@ -95,9 +95,8 @@ function Utils.WalkTrack(trackOriginData, frictionValues, timestep)
 
     -- God save our souls
     local curSpeed = trackOriginData.speed
-    local minWalkDist = 0.01
+    local minWalkDist = 0.002
     local gravity = 9.81
-    local friction = 0.974 ^ timestep
     local lastPosition = lastTransform:GetPos()
     local lastVelo = lastTransform:GetF() * curSpeed
 
@@ -132,7 +131,15 @@ function Utils.WalkTrack(trackOriginData, frictionValues, timestep)
 
         -- Calculate speed
         local slopeAccel = gravity * Vector3.Dot(-Vector3.YAxis, transform:GetF()) -- m/s²
-        curSpeed = (curSpeed + slopeAccel * timestep) * friction                   -- integrate over timestep
+
+        -- calculate friction deceleration
+        -- What the F*** is this constant? idk. I found it with a graph and measurements.
+        -- No actual idea what it is. All I know is that it's important.
+        local airResist = (curSpeed ^ 2) * 0.0008 * frictionValues.airResistance
+        local finalFrictionAccel = (frictionValues.dynamicFriction * gravity + airResist) *
+            frictionValues.frictionMultiplier
+
+        curSpeed = (curSpeed + (slopeAccel - finalFrictionAccel) * timestep)
 
         -- Calculate local acceleration, which is the velocity induced acceleration + the gravity acceleration.
         local actualAccelWS = -((thisVelo - lastVelo) / timestep) - Vector3.YAxis * gravity

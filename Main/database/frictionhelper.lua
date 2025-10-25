@@ -27,7 +27,10 @@ end
 function FrictionHelper.GetFrictionValues(trackHolder)
     logger:Info("Getting Friction Values:")
 
-    local _, frictionMultiplier = api.track.GetFrictionMultiplier(trackHolder)
+    local enabled, frictionMultiplier = api.track.GetFrictionMultiplier(trackHolder)
+    if not enabled then
+        frictionMultiplier = 1.0
+    end
 
     local tRes = DBUtil.ExecuteQuery(
         "TrackedRideCars",
