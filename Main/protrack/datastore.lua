@@ -13,10 +13,18 @@ Datastore.tSimulationDelta = 0.1
 
 Datastore.tDatapoints = {}
 Datastore.trackEntityTransform = nil
-Datastore.trackWalkerSpeed = nil
-Datastore.trackWalkerTransform = nil
+Datastore.trackWalkerOrigin = nil
+
+function Datastore.HasData()
+    return Datastore.tDatapoints ~= nil and #Datastore.tDatapoints >= 2
+end
 
 function Datastore.SampleDatapointAtTime(time)
+    if not Datastore.HasData() then
+        logger:Error("SampleDatapointAtTime requires datastore to have data! See Datastore.HasData().")
+        return nil
+    end
+
     -- clamp time
     if (time < 0) then
         time = 0

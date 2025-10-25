@@ -8,15 +8,27 @@ local Vector3 = require("Vector3")
 local TransformQ = require("TransformQ")
 local Quaternion = require("Quaternion")
 
+---@class TrackOrigin
+---@field transform any
+---@field gforce any
+---@field speed any
+
+---@class TrackMeasurement
+---@field g any
+---@field transform any
+
 local Utils = {}
 
-function Utils.GetFirstCarTrackLocAndSpeed(rideID)
+--- Returns the current track origin data of a ride.
+---@param rideID table The entity ID of the ride.
+---@return TrackOrigin?
+function Utils.GetFirstCarData(rideID)
     local worldAPI = api.world.GetWorldAPIs()
 
     local tTrains = worldAPI.trackedrides:GetAllTrainsOnTrackedRide(rideID)
 
     if tTrains == nil or #tTrains < 1 then
-        return nil, nil
+        return nil
     end
 
     local trainID = tTrains[1]
@@ -26,45 +38,89 @@ function Utils.GetFirstCarTrackLocAndSpeed(rideID)
             for _, nCar in ipairs(tCars) do
                 if nCar ~= api.entity.NullEntityID and worldAPI.trackedrides:GetCarIsOnTrack(nCar) and worldAPI.trackedrides:GetCarTrackSpeed(nCar) ~= nil then
                     local speed = worldAPI.trackedrides:GetCarTrackSpeed(nCar)
+                    local gforce = worldAPI.trackedrides:GetCarLocalAcceleration(nCar)
                     local trackLocation = worldAPI.trackedrides:GetCarFrontTrackLocation_Display(nCar)
-                    return trackLocation, speed
+                    return {
+                        transform = trackLocation,
+                        speed = speed,
+                        gforce = gforce
+                    }
                 end
             end
         end
     end
 
-    return nil, nil
+    return nil
 end
 
+--- Converts a TrackTransform (from the TrackLib) to a TransformQ.
+---@param trackTransform any
+---@return any
 function Utils.TrackTransformToTransformQ(trackTransform)
     local transform = trackTransform:GetLocationTransform()
     local rotation = Quaternion.FromYawPitchRoll(transform:GetRotation():ToYawPitchRoll())
     return TransformQ.FromOrPos(rotation, transform:GetPos())
 end
 
-function Utils.WalkTrack(trackLoc, initSpeed, timestep)
+--- Walks the track. Returns datapoints.
+---@param trackOriginData TrackOrigin The origin to walk from.
+---@param timestep number The timestep of the simulation.
+---@return TrackMeasurement[]?
+function Utils.WalkTrack(trackOriginData, timestep)
+    if trackOriginData == nil then
+        logger:Info("Exit! Starting point is invalid. Origin is nil.")
+        return nil
+    end
+
     -- Use a different walker,
     -- to prevent polluting the other one.
-    local copyLocation = trackLoc:CopyLocation()
+    local copyLocation = trackOriginData.transform:CopyLocation()
+    if copyLocation == nil then
+        logger:Info("Exit! Starting point is invalid. Copy of track transform failed.")
+        return nil
+    end
+
+    local lastTransform = copyLocation:GetLocationTransform()
+    if lastTransform == nil then
+        logger:Info("Exit! Starting point is invalid. GetLocationTransform failed.")
+        return nil
+    end
+
+    if trackOriginData.speed == nil then
+        logger:Info("Exit! Starting point is invalid. Initial speed was nil.")
+        return nil
+    end
+
+    if trackOriginData.gforce == nil then
+        logger:Info("Exit! Starting point is invalid. Initial GForce was nil.")
+        return nil
+    end
 
     -- God save our souls
-    local curSpeed = initSpeed
-    local dataPts = {}
+    local curSpeed = trackOriginData.speed
     local minWalkDist = 0.01
     local gravity = 9.81
     local friction = 0.974 ^ timestep
-    local lastTransform = trackLoc:GetLocationTransform()
     local lastPosition = lastTransform:GetPos()
     local lastVelo = lastTransform:GetF() * curSpeed
 
+    local dataPts = {}
+
+    do
+        local lastTransformQ = Utils.TrackTransformToTransformQ(copyLocation)
+        dataPts[1] = {
+            g = (trackOriginData.gforce) / gravity + lastTransformQ:ToLocalDir(Vector3.YAxis),
+            transform = lastTransformQ,
+        }
+    end
+
     while (curSpeed > 0) do
         local distStepForward = curSpeed * timestep
-        -- logger:Info("Stepping with speed: " .. global.tostring(curSpeed))
 
         copyLocation:MoveLocation(distStepForward)
         local transform = Utils.TrackTransformToTransformQ(copyLocation)
 
-        if transform == nil then
+        if lastTransform == nil or transform == nil then
             logger:Info("Exit! Transform was null")
             break
         end
@@ -94,12 +150,13 @@ function Utils.WalkTrack(trackLoc, initSpeed, timestep)
 
         -- logger:Info("Reloop.")
     end
+    logger:Info("Finished walk, with " .. global.tostring(#dataPts) .. " points.")
 
     return dataPts
 end
 
--- printTable: prints any Lua value (table, userdata, primitive)
--- All standard library calls are prefixed with `global`.
+--- Prints any Lua table.
+---@param value any
 function Utils.PrintTable(value)
     -- internal recursive printer
     local function printValue(v, indent, seen)
