@@ -40,6 +40,7 @@ protrackManager.inputManagerAPI = nil
 protrackManager.tWorldAPIs = nil
 
 protrackManager.gizmoInitCoroutine = nil
+protrackManager.overlayUI = nil
 
 --
 -- @Brief Init function for this manager
