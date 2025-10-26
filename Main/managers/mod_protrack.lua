@@ -263,7 +263,8 @@ function protrackManager.Advance(self, deltaTime)
 
         local pt = Datastore.SampleDatapointAtTime(self.dt)
         local wsTrans = Datastore.trackEntityTransform:ToWorld(pt.transform)
-        api.transform.SetPosition(Cam.PreviewCameraEntity, wsTrans:GetPos())
+        local wsCamOffset = wsTrans:ToWorldDir(Datastore.trackWalkerOrigin.camOffset)
+        api.transform.SetPosition(Cam.PreviewCameraEntity, wsTrans:GetPos() + wsCamOffset)
         api.transform.SetOrientation(Cam.PreviewCameraEntity, wsTrans:GetOr())
 
         Gizmo.SetMarkerData(wsTrans, pt.g)

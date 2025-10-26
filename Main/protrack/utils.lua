@@ -12,6 +12,7 @@ local Quaternion = require("Quaternion")
 ---@field transform any
 ---@field gforce any
 ---@field speed any
+---@field camOffset any
 
 local Utils = {}
 
@@ -37,7 +38,7 @@ function Utils.GetFirstCarData(rideID)
 
             local trackTransforms = {}
 
-            for _, nCar in ipairs(tCars) do
+            for i, nCar in ipairs(tCars) do
                 ---@diagnostic disable-next-line: undefined-field
                 if nCar ~= api.entity.NullEntityID and worldAPI.trackedrides:GetCarIsOnTrack(nCar) then
                     numCar = numCar + 1.0
@@ -61,8 +62,19 @@ function Utils.GetFirstCarData(rideID)
 
             local finGForce = gForceAccum / numCar
 
-            -- calc avg distance from first car to each car
-            local firstPosition = trackTransforms[1]:GetLocationTransform():GetPos()
+            local firstLocTrans = trackTransforms[1]:GetLocationTransform()
+            local firstPosition = firstLocTrans:GetPos()
+
+            -- Handle camera
+            ---@diagnostic disable-next-line: param-type-mismatch
+            local tAttachPoints = worldAPI.CameraAttachPoint:GetAllPointData(rideID, "TrackCarFrontBumperCamera")
+            local localOffset = Vector3.Zero
+
+            if (#tAttachPoints > 1) then
+                local attachPtTransform = api.transform.GetTransform(tAttachPoints[1].CameraAttachID)
+                local toCam = (attachPtTransform:GetPos() - firstPosition)
+                localOffset = firstLocTrans:ToLocalDir(toCam)
+            end
 
             -- Start at zero
             local distances = {}
@@ -92,7 +104,8 @@ function Utils.GetFirstCarData(rideID)
             return {
                 transform = trackTransforms[1],
                 speed = speed,
-                gforce = finGForce
+                gforce = finGForce,
+                camOffset = localOffset
             }
         end
     end
