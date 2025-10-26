@@ -158,6 +158,7 @@ function Utils.WalkTrack(trackOriginData, frictionValues, timestep)
         dataPts[1] = {
             g = (trackOriginData.gforce) / gravity + lastTransformQ:ToLocalDir(Vector3.YAxis),
             transform = lastTransformQ,
+            speed = trackOriginData.speed
         }
     end
 
@@ -173,7 +174,8 @@ function Utils.WalkTrack(trackOriginData, frictionValues, timestep)
         end
 
         local thisPosition = transform:GetPos()
-        local thisVelo = transform:GetF() * curSpeed
+        local thisSpeed = curSpeed
+        local thisVelo = transform:GetF() * thisSpeed
         local posDifference = thisPosition - lastPosition
         if Vector3.Length(posDifference) < minWalkDist then
             logger:Info("Exit! Didn't walk enough!")
@@ -199,13 +201,11 @@ function Utils.WalkTrack(trackOriginData, frictionValues, timestep)
         dataPts[#dataPts + 1] = {
             g = localAccelG,
             transform = transform,
+            speed = curSpeed
         }
         lastPosition = thisPosition
         lastVelo = thisVelo
-
-        -- logger:Info("Reloop.")
     end
-    logger:Info("Finished walk, with " .. global.tostring(#dataPts) .. " points.")
 
     return dataPts
 end
