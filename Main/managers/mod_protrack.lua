@@ -27,7 +27,9 @@ local Datastore = require("protrack.datastore")
 local FrictionHelper = require("database.frictionhelper")
 local InputEventHandler = require("Components.Input.InputEventHandler")
 local logger = require("forgeutils.logger").Get("ProTrackManager")
-
+local ForceOverlay = require("protrack.ui.forceoverlay")
+local table = require("common.tableplus")
+local UnitConversion = require("Helpers.UnitConversion")
 --/ Main class definition
 ---@class protrackManager
 local protrackManager = module(..., Mutators.Manager())
@@ -41,9 +43,12 @@ protrackManager.inputManagerAPI = nil
 protrackManager.tWorldAPIs = nil
 
 protrackManager.gizmoInitCoroutine = nil
+protrackManager.overlayUI = nil
 
 ---@type FrictionValues
 protrackManager.frictionValues = nil
+
+protrackManager.context = nil
 
 --
 -- @Brief Init function for this manager
@@ -94,6 +99,13 @@ function protrackManager.Activate(self)
     end
 
     logger:Info("Inserted hooks")
+    logger:Info("Initialising UI")
+
+    protrackManager.overlayUI = ForceOverlay:new(function()
+        logger:Info("UI is setup and ready")
+    end)
+
+    protrackManager.context = api.ui2.GetDataStoreContext("ProTrack")
 end
 
 function protrackManager.ZeroData(self)
@@ -111,6 +123,7 @@ end
 
 function protrackManager.StartEditMode(self, trackEditMode)
     logger:Info("Starting edit mode!")
+
     self:ZeroData()
 
     logger:Info("Zeroed")
@@ -154,6 +167,7 @@ end
 
 function protrackManager.EndEditMode(self)
     self:ZeroData()
+    protrackManager.overlayUI:Hide()
 end
 
 function protrackManager.NewTrainPosition(self)
@@ -164,6 +178,8 @@ function protrackManager.NewTrainPosition(self)
     Datastore.trackEntityTransform = api.transform.GetTransform(trackEntity)
     Datastore.trackWalkerOrigin = Utils.GetFirstCarData(trackEntity)
     self:NewWalk()
+    logger:Info("Showing UI Overlay")
+    protrackManager.overlayUI:Show()
 end
 
 function protrackManager.ClearWalkerOrigin(self)
@@ -278,6 +294,26 @@ function protrackManager.Advance(self, deltaTime)
         api.transform.SetOrientation(Cam.PreviewCameraEntity, wsTrans:GetOr())
 
         Gizmo.SetMarkerData(wsTrans, pt.g)
+
+        --  logger:Info("getting datapoints")
+        local indexDatapoint = Datastore.GetFloorIndexForTime(self.dt)
+
+        local numDatapoints = Datastore.GetNumDatapoints()
+
+        -- logger:Info(table.tostring(indexDatapoint) ..
+        --     "/" .. table.tostring(numDatapoints) .. " | " .. table.tostring(pt.g:GetY()) ..
+        --     "," .. table.tostring(pt.g:GetX()))
+        -- logger:Info("Sending current keyframe")
+        api.ui2.SetDataStoreElement(protrackManager.context, "currKeyframe", indexDatapoint)
+        -- logger:Info("Sending keyframe count")
+        api.ui2.SetDataStoreElement(protrackManager.context, "keyframeCount", numDatapoints)
+        -- logger:Info("Sending vertical gforce")
+        api.ui2.SetDataStoreElement(protrackManager.context, "vertGForce", pt.g:GetY())
+        -- logger:Info("Sending lateral gforce")
+        api.ui2.SetDataStoreElement(protrackManager.context, "latGForce", pt.g:GetX())
+        --logger:Info("Sending speed")
+        api.ui2.SetDataStoreElement(protrackManager.context, "speed",
+            UnitConversion.Speed_ToUserPref(pt.speed, UnitConversion.Speed_MS))
     end
 end
 
