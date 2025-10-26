@@ -42,6 +42,7 @@ protrackManager.inputManagerAPI = nil
 protrackManager.tWorldAPIs = nil
 
 protrackManager.gizmoInitCoroutine = nil
+protrackManager.overlayUI = nil
 
 ---@type FrictionValues
 protrackManager.frictionValues = nil
