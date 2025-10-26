@@ -22,7 +22,6 @@ function Utils.GetFirstCarData(rideID)
     local worldAPI = api.world.GetWorldAPIs()
 
     local tTrains = worldAPI.trackedrides:GetAllTrainsOnTrackedRide(rideID)
-
     if tTrains == nil or #tTrains < 1 then
         return nil
     end
@@ -31,18 +30,70 @@ function Utils.GetFirstCarData(rideID)
     if trainID ~= nil and trainID ~= 0 then
         local tCars = worldAPI.trackedrides:GetCarsInTrain(trainID)
         if tCars ~= nil then
+            -- Print for debugging
+            local gForceAccum = Vector3.Zero
+            local numCar = 0.0
+            local speed = nil
+
+            local trackTransforms = {}
+
             for _, nCar in ipairs(tCars) do
-                if nCar ~= api.entity.NullEntityID and worldAPI.trackedrides:GetCarIsOnTrack(nCar) and worldAPI.trackedrides:GetCarTrackSpeed(nCar) ~= nil then
-                    local speed = worldAPI.trackedrides:GetCarTrackSpeed(nCar)
-                    local gforce = worldAPI.trackedrides:GetCarLocalAcceleration(nCar)
-                    local trackLocation = worldAPI.trackedrides:GetCarFrontTrackLocation_Display(nCar)
-                    return {
-                        transform = trackLocation,
-                        speed = speed,
-                        gforce = gforce
-                    }
+                ---@diagnostic disable-next-line: undefined-field
+                if nCar ~= api.entity.NullEntityID and worldAPI.trackedrides:GetCarIsOnTrack(nCar) then
+                    numCar = numCar + 1.0
+
+                    -- get speed
+                    if speed == nil and worldAPI.trackedrides:GetCarTrackSpeed(nCar) ~= nil then
+                        speed = worldAPI.trackedrides:GetCarTrackSpeed(nCar)
+                    end
+
+                    -- Add car distance
+                    ---@diagnostic disable-next-line: param-type-mismatch, cast-local-type
+                    trackTransforms[#trackTransforms + 1] = worldAPI.trackedrides:GetCarFrontTrackLocation_Display(nCar)
+                    gForceAccum = worldAPI.trackedrides:GetCarLocalAcceleration(nCar)
                 end
             end
+
+            -- Protect if there are no transforms
+            if #trackTransforms < 1 then
+                return nil
+            end
+
+            local finGForce = gForceAccum / numCar
+
+            -- calc avg distance from first car to each car
+            local firstPosition = trackTransforms[1]:GetLocationTransform():GetPos()
+
+            -- Start at zero
+            local distances = {}
+            distances[1] = 0
+
+            for i = 2, #trackTransforms do
+                distances[#distances + 1] = Vector3.Length(
+                    trackTransforms[i]:GetLocationTransform():GetPos() -
+                    firstPosition
+                )
+            end
+
+            -- Include an approximation of the back bogie.
+            if #distances > 1 then
+                distances[#distances + 1] = distances[#distances] + (distances[#distances] - distances[#distances - 1])
+            end
+
+            local avgDistance = 0
+            for i, dist in global.ipairs(distances) do
+                avgDistance = avgDistance + dist
+            end
+            avgDistance = avgDistance / #distances
+
+            -- Then move back trackTransform1 by that distance.
+            trackTransforms[1]:MoveLocation(-avgDistance)
+
+            return {
+                transform = trackTransforms[1],
+                speed = speed,
+                gforce = finGForce
+            }
         end
     end
 
