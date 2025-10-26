@@ -10,18 +10,48 @@
 .ProTrackUI_overlay {
     width:auto;
     min-width: fit-content;
+    position:fixed;
     height: 3rem;
+    top: 3rem;
     left: 50%;
     transform: translateX(-50%);
     background-color: var(--whiteColor);
     display:flex;
+    flex-direction:row;
     justify-content:center;
+    align-items: center;
+    gap: 24px;
     padding: 0.5rem;
     border-radius: 1rem;
     pointer-events:auto;
 }
 
+.ProTrackUI_row { 
+    display:flex;
+    width: auto;
+    align-items: center;
+    flex-direction:row;
+}
+
+
+.ProTrackUI_overlay span {
+	display:inline;
+	width:auto;
+	margin: 0;
+	vertical-align: center;
+}
 
 .ProTrackUI_overlay.hide {
     display:none;
+}
+
+.ProTrackUI_icon {
+    filter: invert(1);
+    height: 1.5rem;
+    width: 1.5rem;
+}
+
+.ProTrackUI_text {
+   flex:1;
+   margin-left: 5px;
 }
