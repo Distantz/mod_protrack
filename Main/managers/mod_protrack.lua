@@ -29,7 +29,7 @@ local InputEventHandler = require("Components.Input.InputEventHandler")
 local logger = require("forgeutils.logger").Get("ProTrackManager")
 local ForceOverlay = require("protrack.ui.forceoverlay")
 local table = require("common.tableplus")
-
+local UnitConversion = require("Helpers.UnitConversion")
 --/ Main class definition
 ---@class protrackManager
 local protrackManager = module(..., Mutators.Manager())
@@ -300,7 +300,7 @@ function protrackManager.Advance(self, deltaTime)
         -- logger:Info("Sending lateral gforce")
         api.ui2.SetDataStoreElement(context, "latGForce", pt.g:GetX())
         logger:Info("Sending speed")
-        api.ui2.SetDataStoreElement(context, "speed", pt.speed)
+        api.ui2.SetDataStoreElement(context, "speed", UnitConversion.Speed_ToUserPref(pt.speed, UnitConversion.Speed_MS))
     end
 end
 
