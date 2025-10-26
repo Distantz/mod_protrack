@@ -28,6 +28,7 @@ local FrictionHelper = require("database.frictionhelper")
 local InputEventHandler = require("Components.Input.InputEventHandler")
 local logger = require("forgeutils.logger").Get("ProTrackManager")
 local ForceOverlay = require("protrack.ui.forceoverlay")
+local table = require("common.tableplus")
 
 --/ Main class definition
 ---@class protrackManager
@@ -60,6 +61,7 @@ function protrackManager.Init(self, _tProperties, _tEnvironment)
     logger:Info("Init")
 end
 
+local context = nil
 --
 -- @Brief Activate function for this manager
 --
@@ -100,6 +102,7 @@ function protrackManager.Activate(self)
     protrackManager.overlayUI = ForceOverlay:new(function()
         logger:Info("UI is setup and ready")
     end)
+    context = api.ui2.GetDataStoreContext("ProTrack")
 end
 
 function protrackManager.ZeroData(self)
@@ -279,6 +282,23 @@ function protrackManager.Advance(self, deltaTime)
         api.transform.SetOrientation(Cam.PreviewCameraEntity, wsTrans:GetOr())
 
         Gizmo.SetMarkerData(wsTrans, pt.g)
+
+        --  logger:Info("getting datapoints")
+        local indexDatapoint = Datastore.GetFloorIndexForTime(self.dt)
+
+        local numDatapoints = Datastore.GetNumDatapoints()
+
+        -- logger:Info(table.tostring(indexDatapoint) ..
+        --     "/" .. table.tostring(numDatapoints) .. " | " .. table.tostring(pt.g:GetY()) ..
+        --     "," .. table.tostring(pt.g:GetX()))
+        -- logger:Info("Sending current keyframe")
+        api.ui2.SetDataStoreElement(context, "currKeyframe", indexDatapoint)
+        -- logger:Info("Sending keyframe count")
+        api.ui2.SetDataStoreElement(context, "keyframeCount", numDatapoints)
+        -- logger:Info("Sending vertical gforce")
+        api.ui2.SetDataStoreElement(context, "vertGForce", pt.g:GetY())
+        -- logger:Info("Sending lateral gforce")
+        api.ui2.SetDataStoreElement(context, "latGForce", pt.g:GetX())
     end
 end
 

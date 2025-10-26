@@ -11,7 +11,7 @@ import { loadCSS } from "/js/common/util/CSSUtil.js";
 import * as Format from "/js/common/util/LocalisationUtil.js";
 import * as FontConfig from "/js/config/FontConfig.js";
 import { Icon } from "/js/common/components/Icon.js";
-
+import {DataStoreHelper} from '/js/common/util/DataStoreHelper.js';
 FontConfig;
 
 Engine.initialiseSystems([
@@ -47,8 +47,9 @@ let datapoint = {
 Engine.whenReady.then(async() => {
     await loadCSS('project/Shared');
     await loadDebugDefaultTools();
-
     
+    //datapoint.currentKeyframe = DataStore.getValue(["ProTrack"],"currKeyframe");
+    //datapoint.keyframeCount = DataStore.getValue(["ProTrack"],"keyframeCount");
     
     preact.render(preact.h(CamForceOverlay, null), document.body);
     Engine.sendEvent("OnReady");
@@ -59,11 +60,13 @@ class CamForceOverlay extends preact.Component {
         moduleName:"ProTrackUI"
     };
     state = {
-        visible: false
+        visible: false,
+
     };
     componentWillMount() {
 	    Engine.addListener("Show", this.onShow);
 	    Engine.addListener("Hide", this.onHide);
+        
     }
     componentWillUnmount() {
 	    Engine.removeListener("Show", this.onShow);
@@ -99,28 +102,80 @@ class CamForceOverlay extends preact.Component {
 }
 
 class CamForceKeyframes extends preact.Component {
-    render() {
+    state = {
+        currentKeyframe: 959,
+        keyframeCount: 1000
+    }
+    _helper;
+    componentWillUnmount() {
+        this._helper.clear();
+        this._helper = undefined;
+    }
+    componentWillMount() {
+        this._helper = new DataStoreHelper();
+        this._helper.addPropertyListener(["ProTrack"], "currKeyframe", (value) => {
+            this.setState({currentKeyframe: value});
+        });
+        this._helper.addPropertyListener(["ProTrack"], "keyframeCount", (value) => {
+            this.setState({keyframeCount: value});
+        });
+        this._helper.getAllPropertiesNow();
+
+    }
+    render(props, state) {
         return preact.h("div",{className:"ProTrackUI_row"},
             preact.h(Icon, {src: "img/icons/clock.svg", rootClassName: "ProTrackUI_icon"}),
-            preact.h("div", {className: "ProTrackUI_text"}, `${datapoint.currentKeyframe}/${datapoint.keyframeCount}`)
+            preact.h("div", {className: "ProTrackUI_text"}, `${state.currentKeyframe}/${state.keyframeCount}`)
         );
     }
 }
 
 class CamForceVert extends preact.Component {
-    render() {
+    state = {
+        verticalGForce: 0.00
+    }
+    _helper;
+    componentWillUnmount() {
+        this._helper.clear();
+        this._helper = undefined;
+    }
+    componentWillMount() {
+        this._helper = new DataStoreHelper();
+        this._helper.addPropertyListener(["ProTrack"], "vertGForce", (value) => {
+            this.setState({verticalGForce: value});
+        });
+        this._helper.getAllPropertiesNow();
+
+    }
+    render(props, state) {
         return preact.h("div",{className:"ProTrackUI_row"},
             preact.h(Icon, {src: "img/icons/clock.svg", rootClassName: "ProTrackUI_icon"}),
-            preact.h("div", {className: "ProTrackUI_text"}, Localisation.translate(Format.gForce_2DP(15.123)))
+            preact.h("div", {className: "ProTrackUI_text"}, Localisation.translate(Format.gForce_2DP(state.verticalGForce)))
         );
     }
 }
 
 class CamForceLat extends preact.Component {
-    render() {
+    state = {
+        lateralGForce: 0.00
+    }
+    _helper;
+    componentWillUnmount() {
+        this._helper.clear();
+        this._helper = undefined;
+    }
+    componentWillMount() {
+        this._helper = new DataStoreHelper();
+        this._helper.addPropertyListener(["ProTrack"], "latGForce", (value) => {
+            this.setState({lateralGForce: value});
+        });
+        this._helper.getAllPropertiesNow();
+
+    }
+    render(props,state) {
         return preact.h("div",{className:"ProTrackUI_row"},
             preact.h(Icon, {src: "img/icons/clock.svg", rootClassName: "ProTrackUI_icon"}),
-            preact.h("div", {className: "ProTrackUI_text"}, Localisation.translate(Format.gForce_2DP(15.123)))
+            preact.h("div", {className: "ProTrackUI_text"}, Localisation.translate(Format.gForce_2DP(state.lateralGForce)))
         );
     }
 }
