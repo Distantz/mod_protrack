@@ -135,7 +135,7 @@ function Utils.WalkTrack(trackOriginData, frictionValues, timestep)
         -- calculate friction deceleration
         -- What the F*** is this constant? idk. I found it with a graph and measurements.
         -- No actual idea what it is. All I know is that it's important.
-        local airResist = (curSpeed ^ 2) * 0.0008 * frictionValues.airResistance
+        local airResist = frictionValues.airResistance * (curSpeed * curSpeed) * 0.0003
         local finalFrictionAccel = (frictionValues.dynamicFriction * gravity + airResist) *
             frictionValues.frictionMultiplier
 

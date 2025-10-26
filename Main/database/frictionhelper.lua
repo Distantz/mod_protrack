@@ -25,7 +25,9 @@ end
 ---@param trackHolder table
 ---@return FrictionValues?
 function FrictionHelper.GetFrictionValues(trackHolder)
-    logger:Info("Getting Friction Values:")
+    local trainType = api.track.GetTrainType(trackHolder)
+
+    logger:Info("Getting Friction Values for type: " .. global.tostring(trainType))
 
     local enabled, frictionMultiplier = api.track.GetFrictionMultiplier(trackHolder)
     if not enabled then
@@ -35,7 +37,7 @@ function FrictionHelper.GetFrictionValues(trackHolder)
     local tRes = DBUtil.ExecuteQuery(
         "TrackedRideCars",
         "ProTrack_GetFrictionForTrain",
-        { api.track.GetTrainType(trackHolder) },
+        { trainType },
         1
     )
 
