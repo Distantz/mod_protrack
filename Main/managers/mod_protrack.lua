@@ -88,8 +88,9 @@ function protrackManager.Activate(self)
     local trackEditSelection = require("Editors.Track.TrackEditSelection")
     local baseCommitPreview = trackEditSelection.CommitPreview
     trackEditSelection.CommitPreview = function(slf)
-        baseCommitPreview(slf)
+        local ret = baseCommitPreview(slf)
         self:NewWalk()
+        return ret
     end
 
     logger:Info("Inserted hooks")
