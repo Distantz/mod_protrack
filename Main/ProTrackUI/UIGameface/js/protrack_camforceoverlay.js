@@ -149,7 +149,7 @@ class CamForceVert extends preact.Component {
     }
     render(props, state) {
         return preact.h("div",{className:"ProTrackUI_row"},
-            preact.h(Icon, {src: "img/icons/clock.svg", rootClassName: "ProTrackUI_icon"}),
+            preact.h(Icon, {src: "img/icons/widgetVertical.svg", rootClassName: "ProTrackUI_icon"}),
             preact.h("div", {className: "ProTrackUI_text"}, Localisation.translate(Format.gForce_2DP(state.verticalGForce)))
         );
     }
@@ -174,7 +174,7 @@ class CamForceLat extends preact.Component {
     }
     render(props,state) {
         return preact.h("div",{className:"ProTrackUI_row"},
-            preact.h(Icon, {src: "img/icons/clock.svg", rootClassName: "ProTrackUI_icon"}),
+            preact.h(Icon, {src: "img/icons/widgetHorizontal.svg", rootClassName: "ProTrackUI_icon"}),
             preact.h("div", {className: "ProTrackUI_text"}, Localisation.translate(Format.gForce_2DP(state.lateralGForce)))
         );
     }
@@ -199,7 +199,7 @@ class CamForceSpeed extends preact.Component {
     }
     render(props,state) {
         return preact.h("div",{className:"ProTrackUI_row"},
-            preact.h(Icon, {src: "img/icons/averageSpeed.svg", rootClassName: "ProTrackUI_icon"}),
+            preact.h(Icon, {src: "img/icons/maxSpeed.svg", rootClassName: "ProTrackUI_icon"}),
             preact.h("div", {className: "ProTrackUI_text"}, Localisation.translate(Format.speedUnit_1DP(state.speed)))
         );
     }
