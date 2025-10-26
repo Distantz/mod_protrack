@@ -48,6 +48,8 @@ protrackManager.overlayUI = nil
 ---@type FrictionValues
 protrackManager.frictionValues = nil
 
+protrackManager.context = nil
+
 --
 -- @Brief Init function for this manager
 -- @param _tProperties  a table with initialization data for all the managers.
@@ -61,7 +63,6 @@ function protrackManager.Init(self, _tProperties, _tEnvironment)
     logger:Info("Init")
 end
 
-local context = nil
 --
 -- @Brief Activate function for this manager
 --
@@ -102,7 +103,8 @@ function protrackManager.Activate(self)
     protrackManager.overlayUI = ForceOverlay:new(function()
         logger:Info("UI is setup and ready")
     end)
-    context = api.ui2.GetDataStoreContext("ProTrack")
+
+    protrackManager.context = api.ui2.GetDataStoreContext("ProTrack")
 end
 
 function protrackManager.ZeroData(self)
@@ -221,7 +223,6 @@ function protrackManager.StartTrackCamera(self)
     if not self.inCamera then
         Gizmo.SetMarkerGizmosVisible(false)
         Cam.StartRideCamera()
-        --- TODO: Add force ui show here
         self.inCamera = true
     end
 end
@@ -292,15 +293,16 @@ function protrackManager.Advance(self, deltaTime)
         --     "/" .. table.tostring(numDatapoints) .. " | " .. table.tostring(pt.g:GetY()) ..
         --     "," .. table.tostring(pt.g:GetX()))
         -- logger:Info("Sending current keyframe")
-        api.ui2.SetDataStoreElement(context, "currKeyframe", indexDatapoint)
+        api.ui2.SetDataStoreElement(protrackManager.context, "currKeyframe", indexDatapoint)
         -- logger:Info("Sending keyframe count")
-        api.ui2.SetDataStoreElement(context, "keyframeCount", numDatapoints)
+        api.ui2.SetDataStoreElement(protrackManager.context, "keyframeCount", numDatapoints)
         -- logger:Info("Sending vertical gforce")
-        api.ui2.SetDataStoreElement(context, "vertGForce", pt.g:GetY())
+        api.ui2.SetDataStoreElement(protrackManager.context, "vertGForce", pt.g:GetY())
         -- logger:Info("Sending lateral gforce")
-        api.ui2.SetDataStoreElement(context, "latGForce", pt.g:GetX())
-        logger:Info("Sending speed")
-        api.ui2.SetDataStoreElement(context, "speed", UnitConversion.Speed_ToUserPref(pt.speed, UnitConversion.Speed_MS))
+        api.ui2.SetDataStoreElement(protrackManager.context, "latGForce", pt.g:GetX())
+        --logger:Info("Sending speed")
+        api.ui2.SetDataStoreElement(protrackManager.context, "speed",
+            UnitConversion.Speed_ToUserPref(pt.speed, UnitConversion.Speed_MS))
     end
 end
 
