@@ -27,6 +27,7 @@ local Datastore = require("protrack.datastore")
 local FrictionHelper = require("database.frictionhelper")
 local InputEventHandler = require("Components.Input.InputEventHandler")
 local logger = require("forgeutils.logger").Get("ProTrackManager")
+local ForceOverlay = require("protrack.ui.forceoverlay")
 
 --/ Main class definition
 ---@class protrackManager
@@ -86,6 +87,11 @@ function protrackManager.Activate(self)
     end
 
     logger:Info("Inserted hooks")
+    logger:Info("Initialising UI")
+
+    protrackManager.overlayUI = ForceOverlay:new(function()
+        logger:Info("UI is setup and ready")
+    end)
 end
 
 function protrackManager.ZeroData(self)
@@ -103,7 +109,6 @@ end
 
 function protrackManager.StartEditMode(self, trackEditMode)
     logger:Info("Starting edit mode!")
-    --- TODO: Add Ui initialisation here
 
     self:ZeroData()
 
@@ -148,6 +153,7 @@ end
 
 function protrackManager.EndEditMode(self)
     self:ZeroData()
+    protrackManager.overlayUI:Hide()
 end
 
 function protrackManager.NewTrainPosition(self)
@@ -158,6 +164,8 @@ function protrackManager.NewTrainPosition(self)
     Datastore.trackEntityTransform = api.transform.GetTransform(trackEntity)
     Datastore.trackWalkerOrigin = Utils.GetFirstCarData(trackEntity)
     self:NewWalk()
+    logger:Info("Showing UI Overlay")
+    protrackManager.overlayUI:Show()
 end
 
 function protrackManager.NewWalk(self)
@@ -203,7 +211,6 @@ function protrackManager.StartTrackCamera(self)
         Gizmo.SetMarkerGizmosVisible(false)
         Cam.StartRideCamera()
         --- TODO: Add force ui show here
-        protrackManager.overlayUI:Show()
         self.inCamera = true
     end
 end
@@ -212,8 +219,6 @@ function protrackManager.StopTrackCamera(self)
     if self.inCamera then
         Gizmo.SetMarkerGizmosVisible(true)
         Cam.StopRideCamera()
-        --- TODO: Add force ui hide here
-        protrackManager.overlayUI:Hide()
         self.inCamera = false
     end
 end
