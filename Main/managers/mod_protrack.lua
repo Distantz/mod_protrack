@@ -166,6 +166,13 @@ function protrackManager.NewTrainPosition(self)
     self:NewWalk()
 end
 
+function protrackManager.ClearWalkerOrigin(self)
+    Datastore.trackWalkerOrigin = nil
+    Gizmo.SetMarkerGizmosVisible(false)
+    Gizmo.SetTrackGizmosVisible(false)
+    self:StopTrackCamera()
+end
+
 function protrackManager.NewWalk(self)
     logger:Info("NewWalk()")
     if Datastore.trackWalkerOrigin == nil then
@@ -182,10 +189,7 @@ function protrackManager.NewWalk(self)
     -- Need to clear everything
 
     if not Datastore.HasData() then
-        Datastore.trackWalkerOrigin = nil
-        Gizmo.SetMarkerGizmosVisible(false)
-        Gizmo.SetTrackGizmosVisible(false)
-        self:StopTrackCamera()
+        self:ClearWalkerOrigin()
         return
     end
 
@@ -256,6 +260,11 @@ function protrackManager.Advance(self, deltaTime)
     --Gizmo.Visible(not self.inCamera)
 
     if Datastore.HasData() then
+        if Datastore.trackWalkerOrigin == nil or Datastore.trackEntityTransform == nil then
+            self:ClearWalkerOrigin()
+            return
+        end
+
         local timestep = api.time.GetDeltaTimeUnscaled()
         self.dt = self.dt + timestep * direction
 
@@ -264,7 +273,8 @@ function protrackManager.Advance(self, deltaTime)
 
         local pt = Datastore.SampleDatapointAtTime(self.dt)
         local wsTrans = Datastore.trackEntityTransform:ToWorld(pt.transform)
-        api.transform.SetPosition(Cam.PreviewCameraEntity, wsTrans:GetPos())
+        local wsCamOffset = wsTrans:ToWorldDir(Datastore.trackWalkerOrigin.camOffset)
+        api.transform.SetPosition(Cam.PreviewCameraEntity, wsTrans:GetPos() + wsCamOffset)
         api.transform.SetOrientation(Cam.PreviewCameraEntity, wsTrans:GetOr())
 
         Gizmo.SetMarkerData(wsTrans, pt.g)
