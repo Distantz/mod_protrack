@@ -67,13 +67,10 @@ function Utils.GetFirstCarData(rideID)
 
             -- Handle camera
             ---@diagnostic disable-next-line: param-type-mismatch
-            local tAttachPoints = worldAPI.CameraAttachPoint:GetAllPointData(rideID, "TrackCarFrontBumperCamera")
+            local tAttachPoints = worldAPI.CameraAttachPoint:GetAllPointData(trainID, "TrackCarFrontBumperCamera")
             local localOffset = Vector3.Zero
-
-            if (#tAttachPoints > 1) then
-                local attachPtTransform = api.transform.GetTransform(tAttachPoints[1].CameraAttachID)
-                local toCam = (attachPtTransform:GetPos() - firstPosition)
-                localOffset = firstLocTrans:ToLocalDir(toCam)
+            for _, tAttachData in pairs(tAttachPoints) do
+                localOffset = api.transform.GetTransform(tAttachData.CameraAttachID):GetPos()
             end
 
             -- Start at zero
