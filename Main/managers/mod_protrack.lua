@@ -85,6 +85,13 @@ function protrackManager.Activate(self)
         self:EndEditMode()
     end
 
+    local trackEditSelection = require("Editors.Track.TrackEditSelection")
+    local baseCommitPreview = trackEditSelection.CommitPreview
+    trackEditSelection.CommitPreview = function(slf)
+        baseCommitPreview(slf)
+        self:NewWalk()
+    end
+
     logger:Info("Inserted hooks")
 end
 
@@ -229,6 +236,11 @@ function protrackManager.Advance(self, deltaTime)
     end
 
     self.inputEventHandler:CheckEvents()
+
+    -- If a change has happened, we want to know!
+    if (self.trackEditMode:HasRequestedChange()) then
+        self:NewWalk()
+    end
 
     -- Work out direction
     local direction = 0.0
