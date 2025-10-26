@@ -299,6 +299,8 @@ function protrackManager.Advance(self, deltaTime)
         api.ui2.SetDataStoreElement(context, "vertGForce", pt.g:GetY())
         -- logger:Info("Sending lateral gforce")
         api.ui2.SetDataStoreElement(context, "latGForce", pt.g:GetX())
+        logger:Info("Sending speed")
+        api.ui2.SetDataStoreElement(context, "speed", pt.speed)
     end
 end
 

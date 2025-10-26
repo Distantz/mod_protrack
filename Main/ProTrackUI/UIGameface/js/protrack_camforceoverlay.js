@@ -181,10 +181,26 @@ class CamForceLat extends preact.Component {
 }
 
 class CamForceSpeed extends preact.Component {
-    render() {
+    state = {
+        speed: 0.00
+    }
+    _helper;
+    componentWillUnmount() {
+        this._helper.clear();
+        this._helper = undefined;
+    }
+    componentWillMount() {
+        this._helper = new DataStoreHelper();
+        this._helper.addPropertyListener(["ProTrack"], "speed", (value) => {
+            this.setState({speed: value});
+        });
+        this._helper.getAllPropertiesNow();
+
+    }
+    render(props,state) {
         return preact.h("div",{className:"ProTrackUI_row"},
             preact.h(Icon, {src: "img/icons/averageSpeed.svg", rootClassName: "ProTrackUI_icon"}),
-            preact.h("div", {className: "ProTrackUI_text"}, Localisation.translate(Format.speedUnit_1DP(200.12)))
+            preact.h("div", {className: "ProTrackUI_text"}, Localisation.translate(Format.speedUnit_1DP(state.speed)))
         );
     }
 }
