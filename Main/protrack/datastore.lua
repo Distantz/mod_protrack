@@ -14,6 +14,7 @@ Datastore.tSimulationDelta = 0.1
 ---@class TrackMeasurement
 ---@field g any
 ---@field transform any
+---@field speed number
 
 ---@type TrackMeasurement[]|nil
 Datastore.tDatapoints = nil
@@ -76,10 +77,12 @@ function Datastore.SampleDatapointAtFloatIndex(floatIndex)
     local lerpPos = mathUtils.Lerp(fromPt.transform:GetPos(), toPt.transform:GetPos(), fractionalLerp)
     local lerpOr = Quaternion.SLerp(fromPt.transform:GetOr(), toPt.transform:GetOr(), fractionalLerp)
     local lerpG = mathUtils.Lerp(fromPt.g, toPt.g, fractionalLerp)
+    local lerpSpeed = mathUtils.Lerp(fromPt.speed, toPt.speed, fractionalLerp)
 
     return {
         g = lerpG,
-        transform = TransformQ.FromOrPos(lerpOr, lerpPos)
+        transform = TransformQ.FromOrPos(lerpOr, lerpPos),
+        speed = lerpSpeed
     }
 end
 
