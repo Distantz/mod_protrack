@@ -9,7 +9,7 @@ local Quaternion = require("Quaternion")
 local TransformQ = require("TransformQ")
 
 local Datastore = {}
-Datastore.tSimulationDelta = 0.1
+Datastore.tSimulationDelta = (1.0 / 60.0)
 
 ---@class TrackMeasurement
 ---@field g any

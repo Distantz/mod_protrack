@@ -34,6 +34,7 @@ function FrictionHelper.GetFrictionValues(trackHolder)
         frictionMultiplier = 1.0
     end
 
+    local mass = api.track.GetMassOfAllCars(trackHolder)
     local tRes = DBUtil.ExecuteQuery(
         "TrackedRideCars",
         "ProTrack_GetFrictionForTrain",
@@ -46,7 +47,7 @@ function FrictionHelper.GetFrictionValues(trackHolder)
 
         return {
             staticFriction = row[1],
-            airResistance = row[2],
+            airResistance = row[2] * (1.0 / mass), -- constant is premultiplied.
             dynamicFriction = row[3],
             frictionMultiplier = frictionMultiplier
         }
