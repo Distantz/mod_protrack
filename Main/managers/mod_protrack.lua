@@ -172,13 +172,12 @@ end
 
 function protrackManager.NewTrainPosition(self)
     logger:Info("NewTrainPosition()")
-    logger:Info("trying to get trackentity")
     local trackEntity = self.trackEditMode.tActiveData:GetTrackEntity()
-    logger:Info("got it")
     Datastore.trackEntityTransform = api.transform.GetTransform(trackEntity)
     Datastore.trackWalkerOrigin = Utils.GetFirstCarData(trackEntity)
+    -- set dt to 0 since we are moving refpoint
+    self.dt = 0
     self:NewWalk()
-    logger:Info("Showing UI Overlay")
     protrackManager.overlayUI:Show()
 end
 
