@@ -192,21 +192,26 @@ function Utils.WalkTrack(trackOriginData, frictionValues, timestep)
             break
         end
 
+        -- Calculate local acceleration, which is the velocity induced acceleration + the gravity acceleration.
+        local actualAccelWS = -((thisVelo - lastVelo) / timestep) - Vector3.YAxis * gravity
+        local localAccelG = -transform:ToLocalDir(actualAccelWS) / gravity
+
+
         -- Calculate speed
         local slopeAccel = gravity * Vector3.Dot(-Vector3.YAxis, transform:GetF()) -- m/s²
 
         -- calculate friction deceleration
-        -- What the F*** is this constant? idk. I found it with a graph and measurements.
-        -- No actual idea what it is. All I know is that it's important.
-        local airResist = frictionValues.airResistance * (curSpeed * curSpeed) * 0.0003
-        local finalFrictionAccel = (frictionValues.dynamicFriction * gravity + airResist) *
+        -- m * a = 0.5 * p * v^2 * Cd * A
+        -- a = (0.5 * p * v^2 * Cd * A) / m
+        -- a = 0.5 * p * v^2 * frictionValues.airResistance
+        -- a = 0.5 * 1.225 * v^2 * frictionValues.airResistance
+        local gForceMag = math.min(1.0, Vector3.Length(localAccelG))
+        local airResist = 0.5 * 1.225 * (thisSpeed * thisSpeed) * frictionValues.airResistance
+        local finalFrictionAccel = (frictionValues.dynamicFriction * gForceMag * gravity + airResist) *
             frictionValues.frictionMultiplier
 
         curSpeed = (curSpeed + (slopeAccel - finalFrictionAccel) * timestep)
 
-        -- Calculate local acceleration, which is the velocity induced acceleration + the gravity acceleration.
-        local actualAccelWS = -((thisVelo - lastVelo) / timestep) - Vector3.YAxis * gravity
-        local localAccelG = -transform:ToLocalDir(actualAccelWS) / gravity
 
         dataPts[#dataPts + 1] = {
             g = localAccelG,
