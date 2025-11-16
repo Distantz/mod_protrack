@@ -22,7 +22,7 @@ local Utils = {}
 ---@return TrackOrigin?
 function Utils.GetFirstCarData(rideID)
     local worldAPI = api.world.GetWorldAPIs()
-    
+
     ---@diagnostic disable-next-line: undefined-field
     local tTrains = worldAPI.trackedrides:GetAllTrainsOnTrackedRide(rideID)
     if tTrains == nil or #tTrains < 1 then
@@ -127,6 +127,33 @@ end
 ---@return any
 function Utils.GetHeartlinePosition(transform, localHeartline)
     return transform:GetPos() + transform:ToWorldDir(localHeartline)
+end
+
+--- Determines if the track origin is valid
+---@param trackOrigin TrackOrigin?
+---@return boolean
+function Utils.IsTrackOriginValid(trackOrigin)
+    if trackOrigin == nil then
+        return false
+    end
+
+    if trackOrigin.transform == nil then
+        return false
+    end
+    if trackOrigin.camOffset == nil then
+        return false
+    end
+    if trackOrigin.speed == nil then
+        return false
+    end
+    if trackOrigin.gforce == nil then
+        return false
+    end
+    if trackOrigin.transform:GetLocationTransform() == nil then
+        return false
+    end
+
+    return true
 end
 
 --- Walks the track. Returns datapoints.

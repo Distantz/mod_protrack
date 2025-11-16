@@ -139,7 +139,6 @@ function protrackManager.StartEditMode(self, trackEditMode)
 
     self:ZeroData()
 
-    logger:Info("Zeroed")
     self.trackEditMode = trackEditMode
     self.tWorldAPIs = api.world.GetWorldAPIs()
     self.inputManagerAPI = self.tWorldAPIs.InputManager
@@ -155,31 +154,43 @@ function protrackManager.StartEditMode(self, trackEditMode)
     self.inputEventHandler = InputEventHandler:new()
     self.inputEventHandler:Init()
 
-    self.inputEventHandler:AddKeyPressedEvent("RotateObject", function()
-        self:NewTrainPosition()
-        return true
-    end)
-
-    self.inputEventHandler:AddKeyPressedEvent("AdvancedMove", function()
-        self:NewWalk()
-        return true
-    end)
-
-    self.inputEventHandler:AddKeyPressedEvent("ScaleObject", function()
-        logger:Info("Toggle ride camera!")
-        if not self.inCamera then
-            self:StartTrackCamera()
-        else
-            self:StopTrackCamera()
+    self.inputEventHandler:AddKeyPressedEvent(
+        "RotateObject",
+        function()
+            self:NewTrainPosition()
+            return true
         end
-        return true
-    end)
+    )
 
-    self.inputEventHandler:AddKeyPressedEvent("ToggleAlignToSurface", function()
-        logger:Info("Toggle camera mode!")
-        self.cameraIsHeartlineMode = not self.cameraIsHeartlineMode
-        return true
-    end)
+    self.inputEventHandler:AddKeyPressedEvent(
+        "AdvancedMove",
+        function()
+            self:NewWalk()
+            return true
+        end
+    )
+
+    self.inputEventHandler:AddKeyPressedEvent(
+        "ScaleObject",
+        function()
+            logger:Info("Toggle ride camera!")
+            if not self.inCamera then
+                self:StartTrackCamera()
+            else
+                self:StopTrackCamera()
+            end
+            return true
+        end
+    )
+
+    self.inputEventHandler:AddKeyPressedEvent(
+        "ToggleAlignToSurface",
+        function()
+            logger:Info("Toggle camera mode!")
+            self.cameraIsHeartlineMode = not self.cameraIsHeartlineMode
+            return true
+        end
+    )
 end
 
 function protrackManager.EndEditMode(self)
@@ -208,10 +219,11 @@ end
 
 function protrackManager.NewWalk(self)
     logger:Info("NewWalk()")
-    if Datastore.trackWalkerOrigin == nil then
+    if not Utils.IsTrackOriginValid(Datastore.trackWalkerOrigin) then
+        logger:Info("Invalid!")
+        self:ClearWalkerOrigin()
         return
     end
-
     Datastore.tDatapoints = Utils.WalkTrack(
         Datastore.trackWalkerOrigin,
         self.frictionValues,

@@ -7,9 +7,6 @@ local table               = require("Common.tableplus")
 local coroutine           = global.coroutine
 local require             = global.require
 local logger              = require("forgeutils.logger").Get("ProTrackGizmo")
-local Vector3             = require("Vector3")
-local Quaternion          = require("Quaternion")
-local Utils               = require("protrack.utils")
 local TransformQ          = require("TransformQ")
 local mathUtils           = require("Common.mathUtils")
 
@@ -33,11 +30,6 @@ Gizmo.EndPosTransformWS   = nil
 
 function Gizmo.InitGizmo()
     logger:Info("InitGizmo")
-
-    -- Don't respawn if it exists
-    if Gizmo.VertG_ID ~= nil then
-        return
-    end
 
     local token = api.entity.CreateRequestCompletionToken()
 
