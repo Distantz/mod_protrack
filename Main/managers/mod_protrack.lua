@@ -202,7 +202,12 @@ function protrackManager.NewTrainPosition(self)
     logger:Info("NewTrainPosition()")
     local trackEntity = self.trackEditMode.tActiveData:GetTrackEntity()
     Datastore.trackEntityTransform = api.transform.GetTransform(trackEntity)
+
+    -- Early exit
     Datastore.trackWalkerOrigin = Utils.GetFirstCarData(trackEntity)
+    if Datastore.trackWalkerOrigin == nil then
+        return
+    end
 
     -- set dt to 0 since we are moving refpoint
     self.dt = 0

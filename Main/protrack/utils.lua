@@ -65,6 +65,10 @@ function Utils.GetFirstCarData(rideID)
             local finGForce = gForceAccum / numCar
 
             local firstLocTrans = trackTransforms[1]:GetLocationTransform()
+            if firstLocTrans == nil then
+                return nil
+            end
+
             local firstPosition = firstLocTrans:GetPos()
 
             -- Handle camera
@@ -80,10 +84,14 @@ function Utils.GetFirstCarData(rideID)
             distances[1] = 0
 
             for i = 2, #trackTransforms do
-                distances[#distances + 1] = Vector3.Length(
-                    trackTransforms[i]:GetLocationTransform():GetPos() -
-                    firstPosition
-                )
+                local transform = trackTransforms[i]:GetLocationTransform()
+
+                if transform ~= nil then
+                    distances[#distances + 1] = Vector3.Length(
+                        transform:GetPos() -
+                        firstPosition
+                    )
+                end
             end
 
             -- Include an approximation of the back bogie.
