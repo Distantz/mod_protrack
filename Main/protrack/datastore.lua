@@ -1,15 +1,17 @@
 local global = _G
 ---@type Api
+---@diagnostic disable-next-line: undefined-field
 local api = global.api
 local pairs = global.pairs
 local require = global.require
 local logger = require("forgeutils.logger").Get("ProTrackDatastore")
 local mathUtils = require("Common.mathUtils")
 local Quaternion = require("Quaternion")
+local Vector3 = require("Vector3")
 local TransformQ = require("TransformQ")
 
 local Datastore = {}
-Datastore.tSimulationDelta = (1.0 / 60.0)
+Datastore.tSimulationDelta = (1.0 / 30.0)
 
 ---@class TrackMeasurement
 ---@field g any
@@ -20,6 +22,7 @@ Datastore.tSimulationDelta = (1.0 / 60.0)
 Datastore.tDatapoints = nil
 Datastore.trackEntityTransform = nil
 Datastore.trackWalkerOrigin = nil
+Datastore.heartlineOffset = Vector3.Zero
 
 --- Returns whether the datastore has any data for display
 ---@return boolean

@@ -8,6 +8,7 @@
 -----------------------------------------------------------------------
 local global = _G
 ---@type Api
+---@diagnostic disable-next-line: undefined-field
 local api = global.api
 local pairs = global.pairs
 local coroutine = global.coroutine
@@ -36,6 +37,7 @@ local protrackManager = module(..., Mutators.Manager())
 protrackManager.dt = 0
 protrackManager.trackEditMode = nil
 protrackManager.inCamera = false
+protrackManager.cameraIsHeartlineMode = false
 protrackManager.inputEventHandler = nil
 
 ---@type WorldAPIs_InputManager
@@ -101,9 +103,20 @@ function protrackManager.Activate(self)
     logger:Info("Inserted hooks")
     logger:Info("Initialising UI")
 
-    protrackManager.overlayUI = ForceOverlay:new(function()
-        logger:Info("UI is setup and ready")
-    end)
+    protrackManager.overlayUI = ForceOverlay:new(
+        function()
+            logger:Info("UI is setup and ready")
+
+            protrackManager.overlayUI:AddListener_HeartlineValueChanged(
+                function(newVal)
+                    Utils.PrintTable(newVal)
+                    Datastore.heartlineOffset = Vector3:new(0, newVal, 0)
+                    self:NewWalk()
+                end,
+                nil
+            )
+        end
+    )
 
     protrackManager.context = api.ui2.GetDataStoreContext("ProTrack")
 end
@@ -153,14 +166,18 @@ function protrackManager.StartEditMode(self, trackEditMode)
     end)
 
     self.inputEventHandler:AddKeyPressedEvent("ScaleObject", function()
-        -- function num : 0_4_4 , upvalues : self
         logger:Info("Toggle ride camera!")
-
         if not self.inCamera then
             self:StartTrackCamera()
         else
             self:StopTrackCamera()
         end
+        return true
+    end)
+
+    self.inputEventHandler:AddKeyPressedEvent("ToggleAlignToSurface", function()
+        logger:Info("Toggle camera mode!")
+        self.cameraIsHeartlineMode = not self.cameraIsHeartlineMode
         return true
     end)
 end
@@ -175,6 +192,7 @@ function protrackManager.NewTrainPosition(self)
     local trackEntity = self.trackEditMode.tActiveData:GetTrackEntity()
     Datastore.trackEntityTransform = api.transform.GetTransform(trackEntity)
     Datastore.trackWalkerOrigin = Utils.GetFirstCarData(trackEntity)
+
     -- set dt to 0 since we are moving refpoint
     self.dt = 0
     self:NewWalk()
@@ -197,6 +215,7 @@ function protrackManager.NewWalk(self)
     Datastore.tDatapoints = Utils.WalkTrack(
         Datastore.trackWalkerOrigin,
         self.frictionValues,
+        Datastore.heartlineOffset,
         Datastore.tSimulationDelta
     )
 
@@ -287,12 +306,25 @@ function protrackManager.Advance(self, deltaTime)
         self.dt = mathUtils.Clamp(self.dt, 0, Datastore.GetTimeLength())
 
         local pt = Datastore.SampleDatapointAtTime(self.dt)
+        if pt == nil then
+            return
+        end
+
         local wsTrans = Datastore.trackEntityTransform:ToWorld(pt.transform)
         local wsCamOffset = wsTrans:ToWorldDir(Datastore.trackWalkerOrigin.camOffset)
-        api.transform.SetPosition(Cam.PreviewCameraEntity, wsTrans:GetPos() + wsCamOffset)
+        local wsHeartlineOffset = wsTrans:ToWorldDir(Datastore.heartlineOffset)
+
+        -- Pick between both heartline and standard viewing
+        local wsCamOffsetUsed = wsCamOffset
+        if self.cameraIsHeartlineMode then
+            wsCamOffsetUsed = wsHeartlineOffset
+        end
+
+        ---@diagnostic disable-next-line: param-type-mismatch
+        api.transform.SetPosition(Cam.PreviewCameraEntity, wsTrans:GetPos() + wsCamOffsetUsed)
         api.transform.SetOrientation(Cam.PreviewCameraEntity, wsTrans:GetOr())
 
-        Gizmo.SetMarkerData(wsTrans, pt.g)
+        Gizmo.SetMarkerData(wsTrans:WithPos(wsTrans:GetPos() + wsHeartlineOffset), pt.g)
 
         --  logger:Info("getting datapoints")
         local indexDatapoint = Datastore.GetFloorIndexForTime(self.dt)

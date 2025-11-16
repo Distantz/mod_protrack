@@ -17,7 +17,6 @@ local Gizmo               = {}
 Gizmo.Marker_ID           = nil
 Gizmo.VertG_ID            = nil
 Gizmo.LatG_ID             = nil
-Gizmo.LongG_ID            = nil
 Gizmo.Reference_ID        = nil
 Gizmo.EndPos_ID           = nil
 
@@ -64,11 +63,6 @@ function Gizmo.InitGizmo()
 
     Gizmo.LatG_ID = Gizmo.SpawnGizmo(
         "SceneryGizmo3AxisTranslateXOn",
-        token
-    )
-
-    Gizmo.LongG_ID = Gizmo.SpawnGizmo(
-        "SceneryGizmo3AxisTranslateZOn",
         token
     )
 
@@ -161,11 +155,9 @@ function Gizmo.RegenerateMarkerGizmos()
     if displayMarker and Gizmo.MarkerGForce ~= nil then
         Gizmo.PutAxisGizmo(Gizmo.VertG_ID, Gizmo.MarkerTransformWS, -Gizmo.MarkerGForce:GetY(), "RotatedAroundR")
         Gizmo.PutAxisGizmo(Gizmo.LatG_ID, Gizmo.MarkerTransformWS, Gizmo.MarkerGForce:GetX(), "RotatedAroundU")
-        Gizmo.PutAxisGizmo(Gizmo.LongG_ID, Gizmo.MarkerTransformWS, Gizmo.MarkerGForce:GetZ(), "RotatedAroundU")
     else
         Gizmo.PutGizmoAtTransform(Gizmo.VertG_ID, Gizmo.MarkerTransformWS, false)
         Gizmo.PutGizmoAtTransform(Gizmo.LatG_ID, Gizmo.MarkerTransformWS, false)
-        Gizmo.PutGizmoAtTransform(Gizmo.LongG_ID, Gizmo.MarkerTransformWS, false)
     end
 end
 

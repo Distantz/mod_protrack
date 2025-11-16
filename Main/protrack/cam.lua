@@ -1,5 +1,6 @@
 local global = _G
 ---@type Api
+---@diagnostic disable-next-line: undefined-field
 local api = global.api
 local pairs = global.pairs
 local require = global.require
@@ -16,6 +17,7 @@ function Cam.GetPreviewCameraEntity()
     if (Cam.PreviewCameraEntity == nil) then
         local token = api.entity.CreateRequestCompletionToken()
         logger:Info("Spawning new preview camera.")
+        ---@diagnostic disable-next-line: param-type-mismatch
         Cam.PreviewCameraEntity = api.entity.InstantiatePrefab("AttachPoint", nil, token, TransformQ.Identity)
     end
     return Cam.PreviewCameraEntity
