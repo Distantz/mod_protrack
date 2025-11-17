@@ -118,7 +118,7 @@ function Gizmo.SetMarkerGizmosVisible(visible)
         return
     end
 
-    Gizmo.MarkerVisible = true
+    Gizmo.MarkerVisible = visible
     Gizmo.RegenerateMarkerGizmos()
 end
 

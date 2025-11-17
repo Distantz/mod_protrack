@@ -105,6 +105,7 @@ function protrackManager.Activate(self)
     logger:Info("Inserted hooks")
     logger:Info("Initialising UI")
 
+    Datastore.heartlineOffset = Vector3.Zero
     protrackManager.overlayUI = ForceOverlay:new(
         function()
             logger:Info("UI is setup and ready")
