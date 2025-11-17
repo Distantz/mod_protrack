@@ -90,8 +90,8 @@ class CamForceOverlay extends preact.Component {
                     modifiers: 'inner',
                     min: -2.0,
                     max: 2.0,
-                    step: 0.1,
-                    formatter: Format.float_1DP,
+                    step: 0.05,
+                    formatter: Format.float_2DP,
                     value: state.heartline,
                     onChange: this.onHeartlineChanged,
                     focusable: true
