@@ -260,12 +260,10 @@ function Utils.WalkTrack(trackOriginData, frictionValues, heartlineOffset, times
         -- a = 0.5 * p * v^2 * frictionValues.airResistance
         -- a = 0.5 * 1.225 * v^2 * frictionValues.airResistance
         ---@diagnostic disable-next-line: undefined-field
-        local gForceDragMultiplier = math.min(localAccelG:GetY(), 1.0)
+        local gForceDragMultiplier = math.min(localAccelG:GetLength(), 1.0)
         local airResist = 0.5 * 1.225 * (thisSpeed * thisSpeed) * frictionValues.airResistance
-        local finalFrictionAccel = (
-            frictionValues.dynamicFriction * gForceDragMultiplier * gravity +
-            airResist
-        ) * frictionValues.frictionMultiplier
+        local finalFrictionAccel = (frictionValues.dynamicFriction * gForceDragMultiplier * gravity + airResist) *
+            frictionValues.frictionMultiplier
 
         curSpeed = (curSpeed + (slopeAccel - finalFrictionAccel) * timestep)
 

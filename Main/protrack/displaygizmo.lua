@@ -30,6 +30,8 @@ Gizmo.EndPosTransformWS   = nil
 
 function Gizmo.InitGizmo()
     logger:Info("InitGizmo")
+    Gizmo.Visible = true
+    Gizmo.MarkerVisible = true
 
     local token = api.entity.CreateRequestCompletionToken()
 
