@@ -7,9 +7,6 @@ local table               = require("Common.tableplus")
 local coroutine           = global.coroutine
 local require             = global.require
 local logger              = require("forgeutils.logger").Get("ProTrackGizmo")
-local Vector3             = require("Vector3")
-local Quaternion          = require("Quaternion")
-local Utils               = require("protrack.utils")
 local TransformQ          = require("TransformQ")
 local mathUtils           = require("Common.mathUtils")
 
@@ -17,7 +14,6 @@ local Gizmo               = {}
 Gizmo.Marker_ID           = nil
 Gizmo.VertG_ID            = nil
 Gizmo.LatG_ID             = nil
-Gizmo.LongG_ID            = nil
 Gizmo.Reference_ID        = nil
 Gizmo.EndPos_ID           = nil
 
@@ -34,11 +30,8 @@ Gizmo.EndPosTransformWS   = nil
 
 function Gizmo.InitGizmo()
     logger:Info("InitGizmo")
-
-    -- Don't respawn if it exists
-    if Gizmo.VertG_ID ~= nil then
-        return
-    end
+    Gizmo.Visible = true
+    Gizmo.MarkerVisible = true
 
     local token = api.entity.CreateRequestCompletionToken()
 
@@ -64,11 +57,6 @@ function Gizmo.InitGizmo()
 
     Gizmo.LatG_ID = Gizmo.SpawnGizmo(
         "SceneryGizmo3AxisTranslateXOn",
-        token
-    )
-
-    Gizmo.LongG_ID = Gizmo.SpawnGizmo(
-        "SceneryGizmo3AxisTranslateZOn",
         token
     )
 
@@ -161,11 +149,9 @@ function Gizmo.RegenerateMarkerGizmos()
     if displayMarker and Gizmo.MarkerGForce ~= nil then
         Gizmo.PutAxisGizmo(Gizmo.VertG_ID, Gizmo.MarkerTransformWS, -Gizmo.MarkerGForce:GetY(), "RotatedAroundR")
         Gizmo.PutAxisGizmo(Gizmo.LatG_ID, Gizmo.MarkerTransformWS, Gizmo.MarkerGForce:GetX(), "RotatedAroundU")
-        Gizmo.PutAxisGizmo(Gizmo.LongG_ID, Gizmo.MarkerTransformWS, Gizmo.MarkerGForce:GetZ(), "RotatedAroundU")
     else
         Gizmo.PutGizmoAtTransform(Gizmo.VertG_ID, Gizmo.MarkerTransformWS, false)
         Gizmo.PutGizmoAtTransform(Gizmo.LatG_ID, Gizmo.MarkerTransformWS, false)
-        Gizmo.PutGizmoAtTransform(Gizmo.LongG_ID, Gizmo.MarkerTransformWS, false)
     end
 end
 

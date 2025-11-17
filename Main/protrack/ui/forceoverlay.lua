@@ -6,6 +6,8 @@ local global            = _G
 ---@diagnostic disable-next-line: undefined-field
 local api               = global.api
 local require           = global.require
+
+---@diagnostic disable-next-line: deprecated
 local module            = global.module
 local Object            = require("Common.object")
 local GamefaceUIWrapper = require("UI.GamefaceUIWrapper")
@@ -34,12 +36,19 @@ function ForceOverlay:new(_fnOnReadyCallback)
 	return oNewForceOverlay
 end
 
+function ForceOverlay:AddListener_HeartlineValueChanged(_callback, _self)
+	---@diagnostic disable-next-line: undefined-field
+	self:AddEventListener("ProtrackHeartlineChanged", 1, _callback, _self)
+end
+
 function ForceOverlay:Show()
 	logger:Info("Showing Overlay")
+	---@diagnostic disable-next-line: undefined-field
 	self:TriggerEventAtNextAdvance("Show")
 end
 
 function ForceOverlay:Hide()
 	logger:Info("Hiding Overlay")
+	---@diagnostic disable-next-line: undefined-field
 	self:TriggerEventAtNextAdvance("Hide")
 end

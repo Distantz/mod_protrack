@@ -1,5 +1,6 @@
 local global = _G
 ---@type Api
+---@diagnostic disable-next-line: undefined-field
 local api = global.api
 local pairs = global.pairs
 local require = global.require
@@ -22,6 +23,7 @@ local Utils = {}
 function Utils.GetFirstCarData(rideID)
     local worldAPI = api.world.GetWorldAPIs()
 
+    ---@diagnostic disable-next-line: undefined-field
     local tTrains = worldAPI.trackedrides:GetAllTrainsOnTrackedRide(rideID)
     if tTrains == nil or #tTrains < 1 then
         return nil
@@ -63,6 +65,10 @@ function Utils.GetFirstCarData(rideID)
             local finGForce = gForceAccum / numCar
 
             local firstLocTrans = trackTransforms[1]:GetLocationTransform()
+            if firstLocTrans == nil then
+                return nil
+            end
+
             local firstPosition = firstLocTrans:GetPos()
 
             -- Handle camera
@@ -78,10 +84,14 @@ function Utils.GetFirstCarData(rideID)
             distances[1] = 0
 
             for i = 2, #trackTransforms do
-                distances[#distances + 1] = Vector3.Length(
-                    trackTransforms[i]:GetLocationTransform():GetPos() -
-                    firstPosition
-                )
+                local transform = trackTransforms[i]:GetLocationTransform()
+
+                if transform ~= nil then
+                    distances[#distances + 1] = Vector3.Length(
+                        transform:GetPos() -
+                        firstPosition
+                    )
+                end
             end
 
             -- Include an approximation of the back bogie.
@@ -119,14 +129,55 @@ function Utils.TrackTransformToTransformQ(trackTransform)
     return TransformQ.FromOrPos(rotation, transform:GetPos())
 end
 
+--- Returns the heartline position from a transform
+---@param transform any
+---@param localHeartline any
+---@return any
+function Utils.GetHeartlinePosition(transform, localHeartline)
+    return transform:GetPos() + transform:ToWorldDir(localHeartline)
+end
+
+--- Determines if the track origin is valid
+---@param trackOrigin TrackOrigin?
+---@return boolean
+function Utils.IsTrackOriginValid(trackOrigin)
+    if trackOrigin == nil then
+        return false
+    end
+
+    if trackOrigin.transform == nil then
+        return false
+    end
+    if trackOrigin.camOffset == nil then
+        return false
+    end
+    if trackOrigin.speed == nil then
+        return false
+    end
+    if trackOrigin.gforce == nil then
+        return false
+    end
+    if trackOrigin.transform:GetLocationTransform() == nil then
+        return false
+    end
+
+    return true
+end
+
 --- Walks the track. Returns datapoints.
 ---@param trackOriginData TrackOrigin The origin to walk from.
 ---@param frictionValues FrictionValues The friction values to use.
+---@param heartlineOffset any The heartline offset.
 ---@param timestep number The timestep of the simulation.
 ---@return TrackMeasurement[]?
-function Utils.WalkTrack(trackOriginData, frictionValues, timestep)
+function Utils.WalkTrack(trackOriginData, frictionValues, heartlineOffset, timestep)
     if trackOriginData == nil then
         logger:Info("Exit! Starting point is invalid. Origin is nil.")
+        return nil
+    end
+
+    if trackOriginData.transform == nil then
+        logger:Info("Exit! Starting point is invalid. Origin transform is nil.")
         return nil
     end
 
@@ -138,7 +189,7 @@ function Utils.WalkTrack(trackOriginData, frictionValues, timestep)
         return nil
     end
 
-    local lastTransform = copyLocation:GetLocationTransform()
+    local lastTransform = Utils.TrackTransformToTransformQ(copyLocation)
     if lastTransform == nil then
         logger:Info("Exit! Starting point is invalid. GetLocationTransform failed.")
         return nil
@@ -154,20 +205,20 @@ function Utils.WalkTrack(trackOriginData, frictionValues, timestep)
         return nil
     end
 
-    -- God save our souls
     local curSpeed = trackOriginData.speed
     local minWalkDist = 0.002
     local gravity = 9.81
     local lastPosition = lastTransform:GetPos()
     local lastVelo = lastTransform:GetF() * curSpeed
 
-    local dataPts = {}
+    local lastHeartlinePosition = Utils.GetHeartlinePosition(lastTransform, heartlineOffset)
+    local lastHeartlineVelocity = lastVelo
 
+    local dataPts = {}
     do
-        local lastTransformQ = Utils.TrackTransformToTransformQ(copyLocation)
         dataPts[1] = {
-            g = (trackOriginData.gforce) / gravity + lastTransformQ:ToLocalDir(Vector3.YAxis),
-            transform = lastTransformQ,
+            g = (trackOriginData.gforce) / gravity + lastTransform:ToLocalDir(Vector3.YAxis),
+            transform = lastTransform,
             speed = trackOriginData.speed
         }
     end
@@ -176,50 +227,56 @@ function Utils.WalkTrack(trackOriginData, frictionValues, timestep)
         local distStepForward = curSpeed * timestep
 
         copyLocation:MoveLocation(distStepForward)
-        local transform = Utils.TrackTransformToTransformQ(copyLocation)
+        local thisTransform = Utils.TrackTransformToTransformQ(copyLocation)
 
-        if lastTransform == nil or transform == nil then
+        if lastTransform == nil or thisTransform == nil then
             logger:Info("Exit! Transform was null")
             break
         end
 
-        local thisPosition = transform:GetPos()
+        local thisPosition = thisTransform:GetPos()
         local thisSpeed = curSpeed
-        local thisVelo = transform:GetF() * thisSpeed
+        local thisVelo = thisTransform:GetF() * thisSpeed
         local posDifference = thisPosition - lastPosition
         if Vector3.Length(posDifference) < minWalkDist then
             logger:Info("Exit! Didn't walk enough!")
             break
         end
 
-        -- Calculate local acceleration, which is the velocity induced acceleration + the gravity acceleration.
-        local actualAccelWS = -((thisVelo - lastVelo) / timestep) - Vector3.YAxis * gravity
-        local localAccelG = -transform:ToLocalDir(actualAccelWS) / gravity
+        -- New heartline acceleration calc using finite difference method
+        local thisHeartlinePosition = Utils.GetHeartlinePosition(thisTransform, heartlineOffset)
+        local thisHeartlineVelocity = (thisHeartlinePosition - lastHeartlinePosition) / timestep
+        local actualAccelWS = -((thisHeartlineVelocity - lastHeartlineVelocity) / timestep) - Vector3.YAxis * gravity
 
+        -- Combined acceleration
+        local localAccelG = -thisTransform:ToLocalDir(actualAccelWS) / gravity
 
         -- Calculate speed
-        local slopeAccel = gravity * Vector3.Dot(-Vector3.YAxis, transform:GetF()) -- m/s²
+        local slopeAccel = gravity * Vector3.Dot(-Vector3.YAxis, thisTransform:GetF()) -- m/s²
 
         -- calculate friction deceleration
         -- m * a = 0.5 * p * v^2 * Cd * A
         -- a = (0.5 * p * v^2 * Cd * A) / m
         -- a = 0.5 * p * v^2 * frictionValues.airResistance
         -- a = 0.5 * 1.225 * v^2 * frictionValues.airResistance
-        local gForceMag = math.min(1.0, Vector3.Length(localAccelG))
+        ---@diagnostic disable-next-line: undefined-field
+        local gForceDragMultiplier = math.min(localAccelG:GetLength(), 1.0)
         local airResist = 0.5 * 1.225 * (thisSpeed * thisSpeed) * frictionValues.airResistance
-        local finalFrictionAccel = (frictionValues.dynamicFriction * gForceMag * gravity + airResist) *
+        local finalFrictionAccel = (frictionValues.dynamicFriction * gForceDragMultiplier * gravity + airResist) *
             frictionValues.frictionMultiplier
 
         curSpeed = (curSpeed + (slopeAccel - finalFrictionAccel) * timestep)
 
-
         dataPts[#dataPts + 1] = {
             g = localAccelG,
-            transform = transform,
+            transform = thisTransform,
             speed = curSpeed
         }
+        lastTransform = thisTransform
         lastPosition = thisPosition
         lastVelo = thisVelo
+        lastHeartlinePosition = thisHeartlinePosition
+        lastHeartlineVelocity = thisHeartlineVelocity
     end
 
     return dataPts

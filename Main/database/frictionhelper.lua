@@ -27,10 +27,8 @@ end
 function FrictionHelper.GetFrictionValues(trackHolder)
     local trainType = api.track.GetTrainType(trackHolder)
 
-    logger:Info("Getting Friction Values for type: " .. global.tostring(trainType))
-
     local enabled, frictionMultiplier = api.track.GetFrictionMultiplier(trackHolder)
-    if not enabled then
+    if frictionMultiplier == 0 and not enabled then
         frictionMultiplier = 1.0
     end
 
