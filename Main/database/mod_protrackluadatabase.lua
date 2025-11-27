@@ -4,12 +4,14 @@
 -- You can see that happening here with the table local.
 local global = _G
 local table = global.table
-local DBUtil = require("forgeutils.internal.database.databaseutils")
+local HookManager = require("forgeutils.hookmanager")
 local FrictionHelper = require("database.frictionhelper")
+local FvdMode = require("protrack.fvd.fvdmode")
 
 -- Since api isn't default lua, this has a warning.
 -- Disable it so we don't get weird errors if using LuaCATS.
 ---@type Api
+---@diagnostic disable-next-line: undefined-field
 local api = global.api
 
 -- Optional: ForgeUtils has logger support! You should use it if you have ForgeUtils installed #plug
@@ -27,6 +29,7 @@ local LuaDB = {}
 -- Any file added in here will have these functions from their table called (if present).
 function LuaDB.AddContentToCall(_tContentToCall)
     -- Requires ACSE. If not present, the mod doesn't add this file to be called..
+    ---@diagnostic disable-next-line: undefined-field
     if not api.acse or api.acse.versionNumber < 0.7 then
         return
     end
@@ -36,9 +39,16 @@ end
 -- This is one database function that can be called.
 -- If your mod works, you should see this print message in your log when using ACSEDebug!
 function LuaDB.Init()
-    require("forgeutils.moddb").RegisterMod("Mod_ProTrack", 1.0)
+    -- Need 1.3 for the Hook Manager.
+    require("forgeutils.moddb").RegisterMod("Mod_ProTrack", 1.3)
     logger:Info("Mod_ProTrack called Init()!")
     api.ui2.MapResources("ProTrackUI")
+
+    HookManager:AddHook(
+        "Editors.Track.TrackEditValues",
+        "StaticBuildEndPoint",
+        FvdMode.StaticBuildEndPoint_Hook
+    )
 end
 
 LuaDB.Shutdown = function()
