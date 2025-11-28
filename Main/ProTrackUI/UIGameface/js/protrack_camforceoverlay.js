@@ -62,7 +62,9 @@ class CamForceOverlay extends preact.Component {
     };
     state = {
         visible: false,
-        heartline: 0
+        heartline: 0.0,
+        posG: 1.0,
+        latG: 0.0
     };
     componentWillMount() {
         Engine.addListener("Show", this.onShow);
@@ -96,20 +98,48 @@ class CamForceOverlay extends preact.Component {
                     onChange: this.onHeartlineChanged,
                     focusable: true
                 }),
+                preact.h(SliderRow, {
+                    label: '[Loc_ProTrack_PosG]',
+                    modifiers: 'inner',
+                    min: -2.0,
+                    max: 6.0,
+                    step: 0.05,
+                    formatter: Format.float_2DP,
+                    value: state.posG,
+                    onChange: this.onPosGChanged,
+                    focusable: true
+                }),
+                preact.h(SliderRow, {
+                    label: '[Loc_ProTrack_LatG]',
+                    modifiers: 'inner',
+                    min: -2.0,
+                    max: 2.0,
+                    step: 0.05,
+                    formatter: Format.float_2DP,
+                    value: state.latG,
+                    onChange: this.onLatGChanged,
+                    focusable: true
+                }),
                 // preact.h("div", ),
                 //preact.h("div", ),
                 //preact.h("div", )
             )
         );
-
     }
+
+    onLatGChanged = (value) => {
+        this.setState({ latG: value });
+        Engine.sendEvent("ProtrackLatGChanged", value);
+    };
+
+    onPosGChanged = (value) => {
+        this.setState({ posG: value });
+        Engine.sendEvent("ProtrackPosGChanged", value);
+    };
 
     onHeartlineChanged = (value) => {
         this.setState({ heartline: value });
         Engine.sendEvent("ProtrackHeartlineChanged", value);
-        // if (this.props.onChange) {
-        //     this.props.onChange(this.state.paramID, value, this.props.context);
-        // }
     };
 
     onShow = () => {

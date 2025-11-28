@@ -22,6 +22,7 @@ local Object = require("Common.object")
 local Mutators = require("Environment.ModuleMutators")
 local Vector3 = require("Vector3")
 local Utils = require("protrack.utils")
+local FvdMode = require("protrack.fvd.fvdmode")
 local Gizmo = require("protrack.displaygizmo")
 local Line = require("protrack.displayline")
 local Cam = require("protrack.cam")
@@ -36,6 +37,7 @@ local UnitConversion = require("Helpers.UnitConversion")
 ---@class protrackManager
 local protrackManager = module(..., Mutators.Manager())
 protrackManager.dt = 0
+---@type TrackEditMode?
 protrackManager.trackEditMode = nil
 protrackManager.inCamera = false
 protrackManager.cameraIsHeartlineMode = false
@@ -81,15 +83,15 @@ function protrackManager.Activate(self)
     Line.InitLine()
     logger:Info("Done gizmo setup")
 
-    local trackEditMode = require("Editors.Track.TrackEditMode")
-    local baseTransitionIn = trackEditMode.TransitionIn
-    trackEditMode.TransitionIn = function(slf, _startTrack, _startSelection, _bDontRequestTrainRespawn)
+    local trackEditModeModule = require("Editors.Track.TrackEditMode")
+    local baseTransitionIn = trackEditModeModule.TransitionIn
+    trackEditModeModule.TransitionIn = function(slf, _startTrack, _startSelection, _bDontRequestTrainRespawn)
         baseTransitionIn(slf, _startTrack, _startSelection, _bDontRequestTrainRespawn)
         self:StartEditMode(slf)
     end
 
-    local baseTransitionOut = trackEditMode.TransitionOut
-    trackEditMode.TransitionOut = function(slf)
+    local baseTransitionOut = trackEditModeModule.TransitionOut
+    trackEditModeModule.TransitionOut = function(slf)
         baseTransitionOut(slf)
         self:EndEditMode()
     end
@@ -106,18 +108,35 @@ function protrackManager.Activate(self)
     logger:Info("Initialising UI")
 
     Datastore.heartlineOffset = Vector3.Zero
+    ---@type ForceOverlay
     protrackManager.overlayUI = ForceOverlay:new(
         function()
             logger:Info("UI is setup and ready")
 
             protrackManager.overlayUI:AddListener_HeartlineValueChanged(
                 function(newVal)
-                    Utils.PrintTable(newVal)
                     Datastore.heartlineOffset = Vector3:new(0, newVal, 0)
                     self:NewWalk()
+                    self:SetTrackBuilderDirty()
                 end,
                 nil
-            )
+            );
+
+            protrackManager.overlayUI:AddListener_PosGValueChanged(
+                function(newVal)
+                    FvdMode.posG = newVal
+                    self:SetTrackBuilderDirty()
+                end,
+                nil
+            );
+
+            protrackManager.overlayUI:AddListener_LatGValueChanged(
+                function(newVal)
+                    FvdMode.latG = newVal
+                    self:SetTrackBuilderDirty()
+                end,
+                nil
+            );
         end
     )
 
@@ -143,6 +162,7 @@ function protrackManager.StartEditMode(self, trackEditMode)
 
     self:ZeroData()
 
+    ---@type TrackEditMode
     self.trackEditMode = trackEditMode
     self.tWorldAPIs = api.world.GetWorldAPIs()
     self.inputManagerAPI = self.tWorldAPIs.InputManager
@@ -199,6 +219,12 @@ end
 function protrackManager.EndEditMode(self)
     self:ZeroData()
     protrackManager.overlayUI:Hide()
+end
+
+function protrackManager.SetTrackBuilderDirty(self)
+    if (self.trackEditMode ~= nil and self.trackEditMode.tActiveData ~= nil) then
+        self.trackEditMode.tActiveData.bEditValuesDirty = true
+    end
 end
 
 function protrackManager.NewTrainPosition(self)
