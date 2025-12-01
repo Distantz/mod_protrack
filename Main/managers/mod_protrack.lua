@@ -24,7 +24,6 @@ local Vector3 = require("Vector3")
 local Utils = require("protrack.utils")
 local FvdMode = require("protrack.fvd.fvdmode")
 local Gizmo = require("protrack.displaygizmo")
-local Line = require("protrack.displayline")
 local Cam = require("protrack.cam")
 local Datastore = require("protrack.datastore")
 local FrictionHelper = require("database.frictionhelper")
@@ -42,6 +41,7 @@ protrackManager.trackEditMode = nil
 protrackManager.inCamera = false
 protrackManager.cameraIsHeartlineMode = false
 protrackManager.inputEventHandler = nil
+protrackManager.line = nil
 
 ---@type WorldAPIs_InputManager
 protrackManager.inputManagerAPI = nil
@@ -80,7 +80,7 @@ function protrackManager.Activate(self)
     logger:Info("Injecting...")
     Cam.GetPreviewCameraEntity()
     self.gizmoInitCoroutine = Gizmo.InitGizmo()
-    Line.InitLine()
+    self.line = require("protrack.displayline"):new()
     logger:Info("Done gizmo setup")
 
     local trackEditModeModule = require("Editors.Track.TrackEditMode")
@@ -144,7 +144,7 @@ function protrackManager.Activate(self)
 end
 
 function protrackManager.ZeroData(self)
-    Line.ClearPoints()
+    self.line:ClearPoints()
     Gizmo.SetMarkerGizmosVisible(false)
     Gizmo.SetTrackGizmosVisible(false)
     self:StopTrackCamera()
@@ -246,7 +246,7 @@ end
 
 function protrackManager.ClearWalkerOrigin(self)
     Datastore.trackWalkerOrigin = nil
-    Line.ClearPoints()
+    self.line:ClearPoints()
     Gizmo.SetMarkerGizmosVisible(false)
     Gizmo.SetTrackGizmosVisible(false)
     self:StopTrackCamera()
@@ -282,12 +282,12 @@ function protrackManager.NewWalk(self)
             datapoint.transform:ToWorldDir(Datastore.heartlineOffset)
         )
     end
-    Line.SetPoints(tPoints)
+    self.line:SetPoints(tPoints)
 
     if self.inCamera then
-        Line.ClearPoints()
+        self.line:ClearPoints()
     else
-        Line.DrawPoints()
+        self.line:DrawPoints()
     end
 
     -- Turn it on
@@ -307,7 +307,7 @@ function protrackManager.StartTrackCamera(self)
     end
 
     if not self.inCamera then
-        Line.ClearPoints()
+        self.line:ClearPoints()
         Gizmo.SetMarkerGizmosVisible(false)
         Cam.StartRideCamera()
         self.inCamera = true
@@ -316,7 +316,7 @@ end
 
 function protrackManager.StopTrackCamera(self)
     if self.inCamera then
-        Line.DrawPoints()
+        self.line:DrawPoints()
         Gizmo.SetTrackGizmosVisible(true)
         Gizmo.SetMarkerGizmosVisible(true)
         Cam.StopRideCamera()

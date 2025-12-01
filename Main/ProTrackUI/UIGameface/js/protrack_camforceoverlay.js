@@ -93,7 +93,7 @@ class CamForceOverlay extends preact.Component {
                     min: -2.0,
                     max: 2.0,
                     step: 0.05,
-                    formatter: Format.float_2DP,
+                    formatter: Format.distanceUnit_2DP,
                     value: state.heartline,
                     onChange: this.onHeartlineChanged,
                     focusable: true
@@ -104,7 +104,7 @@ class CamForceOverlay extends preact.Component {
                     min: -2.0,
                     max: 6.0,
                     step: 0.05,
-                    formatter: Format.float_2DP,
+                    formatter: Format.gForce_2DP,
                     value: state.posG,
                     onChange: this.onPosGChanged,
                     focusable: true
@@ -115,7 +115,7 @@ class CamForceOverlay extends preact.Component {
                     min: -2.0,
                     max: 2.0,
                     step: 0.05,
-                    formatter: Format.float_2DP,
+                    formatter: Format.gForce_2DP,
                     value: state.latG,
                     onChange: this.onLatGChanged,
                     focusable: true
