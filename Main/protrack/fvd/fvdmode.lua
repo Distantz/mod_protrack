@@ -41,9 +41,18 @@ require("forgeutils.logger").GLOBAL_LEVEL = "INFO"
 ---@class FvdMode
 local FvdMode = {}
 FvdMode.active = true
-FvdMode.posG = 2.5
+FvdMode.posG = 1
 FvdMode.latG = 0
 FvdMode.line = nil
+FvdMode.g = 9.81
+FvdMode.gravity = Vector3:new(0, -1, 0)
+
+---@class FvdPoint
+---@field pos any Coaster-space position.
+---@field rot any Coaster-space orientation.
+---@field velo number Velocity.
+---@field heartVelo number Heartline velocity.
+---@field heartDistance number Heartline distance travelled, in M.
 
 function FvdMode:StartFvdMode(trackEditMode)
     self.active = true
@@ -51,6 +60,95 @@ end
 
 function FvdMode:EndFvdMode()
     self.active = false
+end
+
+---Returns a new point
+---@param position any Coaster-space position.
+---@param rotation any Coaster-space orientation.
+---@param velocity number Velocity.
+---@param heartlineVelocity number Heartline velocity.
+---@param heartlineDistance number Centerline distance travelled, in M.
+---@return FvdPoint point Point
+function FvdMode.GetPoint(position, rotation, velocity, heartlineVelocity, heartlineDistance)
+    return {
+        pos = position,
+        rot = rotation,
+        velo = velocity,
+        heartVelo = heartlineVelocity,
+        heartDistance = heartlineDistance
+    }
+end
+
+--- Steps a point forward in time by timeStep
+---@param lastPoint FvdPoint The last point to build off
+---@param userG any User acceleration desired in Vector3 form, in G.
+---@param rollDelta number The roll delta to use while stepping. In rads / m.
+---@param heartlineOffset number The heartline offset in M.
+---@param timeStep number The timestep to use
+function FvdMode.StepPoint(lastPoint, userG, rollDelta, heartlineOffset, timeStep)
+    ---
+    --- Just want to shout out the implementation I used as a reference here:
+    --- Large shoutout to IndividualKex on GitHub:
+    --- https://github.com/IndividualKex/KexEdit
+    --- Which itself is a heavily referenced implementation from OpenFVD by altlenny:
+    --- https://github.com/altlenny/openFVD
+    --- We build on the shoulders of giants in the coaster community. Thank you for your hard work.
+    ---
+
+    local prevVertDir = lastPoint.rot:GetU()
+    local prevLatDir = lastPoint.rot:GetR()
+
+    local forceVec =
+        userG:GetX() * prevLatDir
+        + userG:GetY() * prevVertDir
+        + FvdMode.gravity
+
+    local vertAccel = -Vector3.Dot(forceVec, prevVertDir) * FvdMode.g
+    local latAccel = -Vector3.Dot(forceVec, prevLatDir) * FvdMode.g
+    local frwAccel = Vector3.Dot(forceVec, lastPoint.rot:GetF()) * FvdMode.g
+
+    local latQuat = Quaternion.FromAxisAngle(prevVertDir, (-latAccel / lastPoint.heartVelo) / (1.0 / timeStep))
+
+    local newForward = Utils.MultQuaternionVector(
+        Utils.MultQuaternion(
+            Quaternion.FromAxisAngle(prevLatDir, (vertAccel / lastPoint.heartVelo) / (1.0 / timeStep)),
+            latQuat
+        ),
+        lastPoint.rot:GetF()
+    )
+
+    local newRight = Utils.MultQuaternionVector(latQuat, lastPoint.rot:GetR())
+    local newUp = Vector3.Cross(newForward, newRight)
+
+    local halfVeloStep = (lastPoint.velo * 0.5 * timeStep)
+
+    local newPosition =
+        lastPoint.pos + newForward * halfVeloStep
+        + lastPoint.rot:GetF() * halfVeloStep
+        + (lastPoint.pos - lastPoint.rot:GetU() * heartlineOffset)
+        - (lastPoint.pos - newUp * heartlineOffset)
+
+    local distTravelled = Vector3.Length(newPosition - lastPoint.pos)
+    local rollAngle = distTravelled * rollDelta
+
+    local rollQuat = Quaternion.FromAxisAngle(newForward, rollAngle)
+    local rolledRight = (Utils.MultQuaternionVector(rollQuat, newRight)):Normalised()
+
+    local heartlineVelocity = distTravelled / timeStep
+    local nextVelocity = lastPoint.velo + (frwAccel * timeStep)
+    if mathUtils.ApproxEquals(heartlineVelocity, 0) then
+        heartlineVelocity = lastPoint.velo
+    end
+
+    local pt = FvdMode.GetPoint(
+        newPosition,
+        Quaternion.FromFR(newForward, rolledRight),
+        nextVelocity,
+        heartlineVelocity,
+        distTravelled + lastPoint.heartDistance
+    )
+
+    return pt
 end
 
 function FvdMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
@@ -67,88 +165,61 @@ function FvdMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
         return originalMethod(startT, tData)
     end
 
-    local startRoll = startT:GetBank()
-    local gravity = Vector3:new(0, 1, 0)
-    local userAccel = Vector3:new(FvdMode.latG, FvdMode.posG, 0)
+    local userAccel = Vector3:new(FvdMode.latG, FvdMode.posG, 0) -- local-space target accel
 
     logger:Info("Using acceleration: " .. global.tostring(userAccel))
 
     local lastDatapoint = Datastore.tDatapoints[#Datastore.tDatapoints]
-    local lastVelocity = lastDatapoint.speed * lastDatapoint.transform:GetF()
-    local lastPoint = lastDatapoint.transform:GetPos() + lastDatapoint.transform:ToWorldDir(Datastore.heartlineOffset)
-    local lastTransform = TransformQ.FromOrPos(lastDatapoint.transform:GetOr(), lastDatapoint.transform:GetPos())
-    local lastYprNoRoll = lastTransform:GetOr():ToYawPitchRoll():WithZ(0)
-    local accumArcLength = 0
-    local dt = 0.001
-    local rollCompensation = 0
+    local heartline = Datastore.heartlineOffset:GetY()
+
+    -- Get last point
+    local point = FvdMode.GetPoint(
+        lastDatapoint.transform:GetPos() + lastDatapoint.transform:GetOr():GetU() * heartline,
+        lastDatapoint.transform:GetOr(),
+        lastDatapoint.speed,
+        lastDatapoint.speed,
+        0
+    )
+
+    local dt = 0.01
 
     logger:Info("Protrack data is current, fvd mode can continue.")
     logger:Info("Doing steps...")
 
-    -- Set points
+    local rollDeltaPerM = (tData.nBank - startT:GetBank()) / tData.nLength
+    local iter = 0
+
     local tPoints = {}
+    while point.heartDistance < tData.nLength and iter < 8192 do
+        tPoints[#tPoints + 1] = Datastore.trackEntityTransform:ToWorldPos(point.pos)
 
-    -- Compute acceleration in world space (same as before)
-    local function computeAccel(transform)
-        return (transform:ToWorldDir(userAccel) - gravity) * 9.81
-    end
-
-    while accumArcLength < tData.nLength do
-        tPoints[#tPoints + 1] = Datastore.trackEntityTransform:ToWorldPos(lastTransform:GetPos())
-
-        -- --- RK2 MIDPOINT STEP ---
-
-        -- Accel at start
-        local a1 = computeAccel(lastTransform)
-
-        -- Midpoint velocity and position
-        local v_mid = lastVelocity + a1 * (dt * 0.5)
-        local p_mid = lastPoint + lastVelocity * (dt * 0.5)
-
-        -- Build a midpoint transform so orientation stays consistent
-        local midYpr = CameraUtils.YPRFromDir(v_mid:Normalised()):WithZ(lastYprNoRoll:GetZ())
-        local midTransform = lastTransform:WithPos(p_mid):WithOr(Quaternion.FromYawPitchRoll(midYpr))
-
-        -- Accel at midpoint
-        local a2 = computeAccel(midTransform)
-
-        -- Final RK2 updates
-        local nextVelocity = lastVelocity + a2 * dt
-        local nextPt = lastPoint + v_mid * dt
-
-        -- --- END RK2 ---
-
-        accumArcLength = accumArcLength + Vector3.Length(nextPt - lastPoint)
-        lastVelocity = nextVelocity
-        lastPoint = nextPt
-
-        local nextRoll = mathUtils.Lerp(startRoll, tData.nBank, accumArcLength / tData.nLength)
-        local nextYprNoRoll = CameraUtils.YPRFromDir(lastVelocity:Normalised())
-
-        -- Check for zero crossings.
-        -- The right vector should have flipped 180 degrees (so dot < 0)
-        if mathUtils.AngleSub(lastYprNoRoll:GetY(), nextYprNoRoll:GetY()) > 90.0 then
-            rollCompensation = mathUtils.AngleSub(rollCompensation + global.math.pi, 0) -- acts as a wrapping func
-        end
-
-        nextYprNoRoll = nextYprNoRoll:WithZ(nextRoll + rollCompensation)
-        lastYprNoRoll = nextYprNoRoll
-        lastTransform = lastTransform:WithPos(nextPt):WithOr(Quaternion.FromYawPitchRoll(lastYprNoRoll))
+        -- Get delta based on the last velocity
+        point = FvdMode.StepPoint(
+            point,
+            userAccel,
+            rollDeltaPerM,
+            Datastore.heartlineOffset:GetY(),
+            dt
+        )
+        iter = iter + 1
     end
 
     logger:Info("Done.")
 
-    local finalPt = lastTransform:GetPos() - lastTransform:ToWorldDir(Datastore.heartlineOffset)
-    local finalYpr = lastTransform:GetOr():ToYawPitchRoll()
+    local distanceOvershoot = point.heartDistance - tData.nLength
 
-    tPoints[#tPoints + 1] = Datastore.trackEntityTransform:ToWorldPos(lastTransform:GetPos())
+    point.rot = Utils.MultQuaternion(
+        point.rot,
+        Quaternion.FromAxisAngle(Vector3.ZAxis, -rollDeltaPerM * distanceOvershoot)
+    )
 
+    tPoints[#tPoints + 1] = Datastore.trackEntityTransform:ToWorldPos(point.pos)
     FvdMode.line:SetPoints(tPoints)
     FvdMode.line:DrawPoints()
 
     return api.track.CreateJoinPoint(
-        finalPt,
-        finalYpr,
+        point.pos - point.rot:GetU() * heartline,
+        point.rot:ToYawPitchRoll(),
         0
     )
 end
