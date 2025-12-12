@@ -1,6 +1,7 @@
 *.ovl
 *.blend1
 *.zip
+*.ppuipkg
 .editorconfig
 .vscode
 /Build
