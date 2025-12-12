@@ -1,6 +1,6 @@
 *.ovl
 *.blend1
+*.zip
 .editorconfig
 .vscode
-.zip
 /Build

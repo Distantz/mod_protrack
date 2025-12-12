@@ -110,7 +110,7 @@ class CamForceOverlay extends preact.Component {
             preact.h("div", { key: "tab1", className: "ProTrackUI_panelInner" },
                 // Row 1
 
-                preact.h("div", { className: "ProTrackUI_distributeRow" },
+                false && preact.h("div", { className: "ProTrackUI_distributeRow" },
                     preact.h("div", { className: "ProTrackUI_flexRow" },
                         preact.h(Slider, {
                             // label: '[Loc_ProTrack_Scrub]',
@@ -147,7 +147,7 @@ class CamForceOverlay extends preact.Component {
                     // Middle spacer
                     preact.h("div", { className: "ProTrackUI_flexRow" }),
 
-                    preact.h("div", { className: "ProTrackUI_minRow ProTrackUI_innerGap" },
+                    false && preact.h("div", { className: "ProTrackUI_minRow ProTrackUI_innerGap" },
                         preact.h(Button, {
                             icon: 'img/icons/minus.svg',
                             // modifiers: 'negative'
