@@ -41,6 +41,16 @@ function ForceOverlay:AddListener_HeartlineValueChanged(_callback, _self)
 	self:AddEventListener("ProtrackHeartlineChanged", 1, _callback, _self)
 end
 
+function ForceOverlay:AddListener_PosGValueChanged(_callback, _self)
+	---@diagnostic disable-next-line: undefined-field
+	self:AddEventListener("ProtrackPosGChanged", 1, _callback, _self)
+end
+
+function ForceOverlay:AddListener_LatGValueChanged(_callback, _self)
+	---@diagnostic disable-next-line: undefined-field
+	self:AddEventListener("ProtrackLatGChanged", 1, _callback, _self)
+end
+
 function ForceOverlay:Show()
 	logger:Info("Showing Overlay")
 	---@diagnostic disable-next-line: undefined-field

@@ -1,46 +1,44 @@
-local global     = _G
+local global  = _G
 ---@type Api
 ---@diagnostic disable-next-line: undefined-field
-local api        = global.api
-local pairs      = global.pairs
-local table      = require("Common.tableplus")
-local Utils      = require("protrack.utils")
-local coroutine  = global.coroutine
-local require    = global.require
-local logger     = require("forgeutils.logger").Get("ProTrackHeartline")
-local TransformQ = require("TransformQ")
-local mathUtils  = require("Common.mathUtils")
+local api     = global.api
+local require = global.require
 
-local Line       = {}
-Line.volumesAPI  = nil
-Line.guiShape    = nil
-Line.guiDrawing  = nil
-Line.tPoints     = {}
+local Line    = {}
+Line.__index  = Line
 
-function Line.InitLine()
-    logger:Info("InitLine")
-    Line.volumesAPI = api.world.GetWorldAPIs().volumes
-    Line.guiShape = Line.volumesAPI:CreateDrawingShape()
-    Line.guiDrawing = Line.volumesAPI:AllocDrawingID(Line.guiShape)
-    Line.guiVisual = 6
+function Line.new()
+    local self      = global.setmetatable({}, Line)
+    self.volumesAPI = nil
+    self.guiShape   = nil
+    self.guiDrawing = nil
+    self.guiVisual  = 6
+    self.tPoints    = {}
+    self.volumesAPI = api.world.GetWorldAPIs().volumes
+    self.guiShape   = self.volumesAPI:CreateDrawingShape()
+    self.guiDrawing = self.volumesAPI:AllocDrawingID(self.guiShape)
+    return self
 end
 
-function Line.SetPoints(tPoints)
-    Line.tPoints = tPoints
+function Line:SetPoints(tPoints)
+    self.tPoints = tPoints
 end
 
-function Line.DrawPoints()
-    Line.ClearPoints()
-    Line.volumesAPI:BeginDrawing(Line.guiShape, Line.guiDrawing)
-    for i = 2, #Line.tPoints do
-        local vStart, vEnd = Line.tPoints[i - 1], Line.tPoints[i]
-        Line.volumesAPI:AddDrawingLine(Line.guiShape, vStart, vEnd, Line.guiVisual)
+function Line:DrawPoints()
+    self:ClearPoints()
+    self.volumesAPI:BeginDrawing(self.guiShape, self.guiDrawing)
+
+    for i = 2, #self.tPoints do
+        local vStart = self.tPoints[i - 1]
+        local vEnd   = self.tPoints[i]
+        self.volumesAPI:AddDrawingLine(self.guiShape, vStart, vEnd, self.guiVisual)
     end
-    Line.volumesAPI:EndDrawing(Line.guiShape, Line.guiDrawing)
+
+    self.volumesAPI:EndDrawing(self.guiShape, self.guiDrawing)
 end
 
-function Line.ClearPoints()
-    Line.volumesAPI:EraseDrawing(Line.guiShape, Line.guiDrawing)
+function Line:ClearPoints()
+    self.volumesAPI:EraseDrawing(self.guiShape, self.guiDrawing)
 end
 
 return Line

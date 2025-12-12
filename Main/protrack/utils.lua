@@ -164,6 +164,43 @@ function Utils.IsTrackOriginValid(trackOrigin)
     return true
 end
 
+--- Transforms a vector by a quaternion.
+---@param q any The quaternion.
+---@param v any The vector.
+---@return any Vector The transformed vector.
+function Utils.MultQuaternionVector(q, v)
+    -- normalise quaternion
+    q = q:Normalised()
+
+    local qV = Vector3:new(q:GetX(), q:GetY(), q:GetZ())
+    local qW = q:GetW()
+
+    -- q * v (treat vector as quaternion with w = 0)
+    local t = (qV * 2):Cross(v)
+    local newV = v + (t * qW) + Vector3.Cross(qV, t)
+
+    return Vector3:new(newV:GetX(), newV:GetY(), newV:GetZ())
+end
+
+--- Multiplies two quaternions.
+---@param left any The lefthand side quaternion.
+---@param right any The righthand side quaternion.
+---@return any resultQuaternion The resulting quaternion.
+function Utils.MultQuaternion(left, right)
+    -- normalise
+    left = left:Normalised()
+    right = right:Normalised()
+
+    local leftV = Vector3:new(left:GetX(), left:GetY(), left:GetZ())
+    local rightV = Vector3:new(right:GetX(), right:GetY(), right:GetZ())
+    local leftW = left:GetW()
+    local rightW = right:GetW()
+
+    local newW = (rightW * leftW) - Vector3.Dot(rightV, leftV)
+    local newV = (rightW * leftV) + (leftW * rightV) + Vector3.Cross(leftV, rightV)
+    return Quaternion.Identity:WithX(newV:GetX()):WithY(newV:GetY()):WithZ(newV:GetZ()):WithW(newW)
+end
+
 --- Walks the track. Returns datapoints.
 ---@param trackOriginData TrackOrigin The origin to walk from.
 ---@param frictionValues FrictionValues The friction values to use.

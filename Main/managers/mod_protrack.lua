@@ -22,8 +22,8 @@ local Object = require("Common.object")
 local Mutators = require("Environment.ModuleMutators")
 local Vector3 = require("Vector3")
 local Utils = require("protrack.utils")
+local FvdMode = require("protrack.fvd.fvdmode")
 local Gizmo = require("protrack.displaygizmo")
-local Line = require("protrack.displayline")
 local Cam = require("protrack.cam")
 local Datastore = require("protrack.datastore")
 local FrictionHelper = require("database.frictionhelper")
@@ -36,10 +36,12 @@ local UnitConversion = require("Helpers.UnitConversion")
 ---@class protrackManager
 local protrackManager = module(..., Mutators.Manager())
 protrackManager.dt = 0
+---@type TrackEditMode?
 protrackManager.trackEditMode = nil
 protrackManager.inCamera = false
 protrackManager.cameraIsHeartlineMode = false
 protrackManager.inputEventHandler = nil
+protrackManager.line = nil
 
 ---@type WorldAPIs_InputManager
 protrackManager.inputManagerAPI = nil
@@ -78,18 +80,18 @@ function protrackManager.Activate(self)
     logger:Info("Injecting...")
     Cam.GetPreviewCameraEntity()
     self.gizmoInitCoroutine = Gizmo.InitGizmo()
-    Line.InitLine()
+    self.line = require("protrack.displayline"):new()
     logger:Info("Done gizmo setup")
 
-    local trackEditMode = require("Editors.Track.TrackEditMode")
-    local baseTransitionIn = trackEditMode.TransitionIn
-    trackEditMode.TransitionIn = function(slf, _startTrack, _startSelection, _bDontRequestTrainRespawn)
+    local trackEditModeModule = require("Editors.Track.TrackEditMode")
+    local baseTransitionIn = trackEditModeModule.TransitionIn
+    trackEditModeModule.TransitionIn = function(slf, _startTrack, _startSelection, _bDontRequestTrainRespawn)
         baseTransitionIn(slf, _startTrack, _startSelection, _bDontRequestTrainRespawn)
         self:StartEditMode(slf)
     end
 
-    local baseTransitionOut = trackEditMode.TransitionOut
-    trackEditMode.TransitionOut = function(slf)
+    local baseTransitionOut = trackEditModeModule.TransitionOut
+    trackEditModeModule.TransitionOut = function(slf)
         baseTransitionOut(slf)
         self:EndEditMode()
     end
@@ -106,18 +108,35 @@ function protrackManager.Activate(self)
     logger:Info("Initialising UI")
 
     Datastore.heartlineOffset = Vector3.Zero
+    ---@type ForceOverlay
     protrackManager.overlayUI = ForceOverlay:new(
         function()
             logger:Info("UI is setup and ready")
 
             protrackManager.overlayUI:AddListener_HeartlineValueChanged(
                 function(newVal)
-                    Utils.PrintTable(newVal)
                     Datastore.heartlineOffset = Vector3:new(0, newVal, 0)
                     self:NewWalk()
+                    self:SetTrackBuilderDirty()
                 end,
                 nil
-            )
+            );
+
+            protrackManager.overlayUI:AddListener_PosGValueChanged(
+                function(newVal)
+                    FvdMode.posG = newVal
+                    self:SetTrackBuilderDirty()
+                end,
+                nil
+            );
+
+            protrackManager.overlayUI:AddListener_LatGValueChanged(
+                function(newVal)
+                    FvdMode.latG = newVal
+                    self:SetTrackBuilderDirty()
+                end,
+                nil
+            );
         end
     )
 
@@ -125,7 +144,7 @@ function protrackManager.Activate(self)
 end
 
 function protrackManager.ZeroData(self)
-    Line.ClearPoints()
+    self.line:ClearPoints()
     Gizmo.SetMarkerGizmosVisible(false)
     Gizmo.SetTrackGizmosVisible(false)
     self:StopTrackCamera()
@@ -143,6 +162,7 @@ function protrackManager.StartEditMode(self, trackEditMode)
 
     self:ZeroData()
 
+    ---@type TrackEditMode
     self.trackEditMode = trackEditMode
     self.tWorldAPIs = api.world.GetWorldAPIs()
     self.inputManagerAPI = self.tWorldAPIs.InputManager
@@ -201,6 +221,12 @@ function protrackManager.EndEditMode(self)
     protrackManager.overlayUI:Hide()
 end
 
+function protrackManager.SetTrackBuilderDirty(self)
+    if (self.trackEditMode ~= nil and self.trackEditMode.tActiveData ~= nil) then
+        self.trackEditMode.tActiveData.bEditValuesDirty = true
+    end
+end
+
 function protrackManager.NewTrainPosition(self)
     logger:Info("NewTrainPosition()")
     local trackEntity = self.trackEditMode.tActiveData:GetTrackEntity()
@@ -220,7 +246,7 @@ end
 
 function protrackManager.ClearWalkerOrigin(self)
     Datastore.trackWalkerOrigin = nil
-    Line.ClearPoints()
+    self.line:ClearPoints()
     Gizmo.SetMarkerGizmosVisible(false)
     Gizmo.SetTrackGizmosVisible(false)
     self:StopTrackCamera()
@@ -256,12 +282,12 @@ function protrackManager.NewWalk(self)
             datapoint.transform:ToWorldDir(Datastore.heartlineOffset)
         )
     end
-    Line.SetPoints(tPoints)
+    self.line:SetPoints(tPoints)
 
     if self.inCamera then
-        Line.ClearPoints()
+        self.line:ClearPoints()
     else
-        Line.DrawPoints()
+        self.line:DrawPoints()
     end
 
     -- Turn it on
@@ -281,7 +307,7 @@ function protrackManager.StartTrackCamera(self)
     end
 
     if not self.inCamera then
-        Line.ClearPoints()
+        self.line:ClearPoints()
         Gizmo.SetMarkerGizmosVisible(false)
         Cam.StartRideCamera()
         self.inCamera = true
@@ -290,7 +316,7 @@ end
 
 function protrackManager.StopTrackCamera(self)
     if self.inCamera then
-        Line.DrawPoints()
+        self.line:DrawPoints()
         Gizmo.SetTrackGizmosVisible(true)
         Gizmo.SetMarkerGizmosVisible(true)
         Cam.StopRideCamera()
