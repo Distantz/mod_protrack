@@ -13,9 +13,11 @@ import { loadCSS } from "/js/common/util/CSSUtil.js";
 import { Icon } from "/js/common/components/Icon.js";
 import { Slider } from '/js/project/components/Slider.js';
 import { Button } from '/js/project/components/Button.js';
+import { ListStepperRow } from '/js/project/components/ListStepperRow.js';
 
 import { Panel, PanelType } from '/js/project/components/panel/Panel.js';
 import { Tab } from '/js/common/components/Tab.js';
+import { MetricDisplay, DirectionalGForceMetric, KeyframeMetric } from '/js/protrack_metriccomponents.js';
 
 import { DataStoreHelper } from '/js/common/util/DataStoreHelper.js';
 import * as AccentColorUtil from '/js/project/utils/AccentColorUtil.js';
@@ -59,6 +61,7 @@ Engine.whenReady.then(async () => {
     await loadCSS('project/Shared');
     await loadDebugDefaultTools();
     preact.render(preact.h(CamForceOverlay, null), document.body);
+
     Engine.sendEvent("OnReady");
 }).catch(Engine.defaultCatch);
 
@@ -91,6 +94,12 @@ class CamForceOverlay extends preact.Component {
         if (!this.state.visible) {
             return preact.h("div", { className: "ProTrackUI_root" });
         }
+
+        const items = [
+            "[Loc_ProTrack_TM_Normal]",
+            "[Loc_ProTrack_TM_ForceLock]",
+            "[Loc_ProTrack_TM_AdvMove]",
+        ];
 
         var tabs = [
             // Tab one, force viz
@@ -151,16 +160,41 @@ class CamForceOverlay extends preact.Component {
                 ),
 
                 // Row 3
-                preact.h("div", { className: "ProTrackUI_distributeRow" },
-                    preact.h(CamForceKeyframes, null),
-                    preact.h(CamForceVert, null),
-                    preact.h(CamForceLat, null),
-                    preact.h(CamForceSpeed, null)
-                ),
+                preact.h("div", { className: "ProTrackUI_flexRow ProTrackUI_innerGap" },
+                    preact.h(KeyframeMetric, {
+                        icon: "img/icons/clock.svg",
+                        formatter: (v) => v
+                    }),
+                    preact.h(DirectionalGForceMetric, {
+                        dataKey: "vertGForce",
+                        iconPrefix: "img/icons/protrack_vertg_",
+                        threshold: 0.1,
+                        directions: { positive: "d", negative: "u" },
+                        formatter: Format.gForce_2DP
+                    }),
+                    preact.h(DirectionalGForceMetric, {
+                        dataKey: "latGForce",
+                        iconPrefix: "img/icons/protrack_latg_",
+                        threshold: 0.25,
+                        directions: { positive: "l", negative: "r" },
+                        formatter: Format.gForce_2DP
+                    }),
+                    preact.h(MetricDisplay, {
+                        dataKey: "speed",
+                        icon: "img/icons/maxSpeed.svg",
+                        formatter: Format.speedUnit_1DP
+                    })
+                )
             ),
 
-            // Tab 2, forcelock
             preact.h("div", { key: "tab2", className: "ProTrackUI_panelInner" },
+                preact.h("div", { className: "ProTrackUI_flexRow" },
+                    preact.h(ListStepperRow, { showInputIcon: true, modal: true, items: items, label: "[Loc_ProTrack_TM_Label]" }),
+                )
+            ),
+
+            // Tab 2, settings
+            preact.h("div", { key: "tab3", className: "ProTrackUI_panelInner" },
                 preact.h("div", { className: "ProTrackUI_flexRow" },
                     preact.h(Slider, {
                         label: '[Loc_ProTrack_Heartline]',
@@ -217,6 +251,7 @@ class CamForceOverlay extends preact.Component {
                     onClose: props.onClose,
                     tabs: [
                         preact.h(Tab, { icon: '/img/icons/gforce.svg', label: Format.stringLiteral("Track Viz") }),
+                        preact.h(Tab, { icon: '/img/icons/create.svg', label: Format.stringLiteral("Track Tools") }),
                         // preact.h(Tab, { icon: '/img/icons/placeholder.svg' }),
                         preact.h(Tab, { icon: '/img/icons/settings.svg', label: Format.stringLiteral("Settings") })
                     ],

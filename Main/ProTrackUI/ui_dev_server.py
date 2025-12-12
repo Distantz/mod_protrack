@@ -13,7 +13,7 @@ from watchdog.events import FileSystemEventHandler
 SCRIPT_DIR = Path(__file__).parent
 SOURCE_DIR = SCRIPT_DIR / "UIGameface"
 TEST_FOLDER = Path(r"C:\Users\Thomas\Documents\Modding\PC2\UI Test Environment\UIGameface")
-PORT = 8000
+PORT = 8080
 
 # WebSocket for live reload
 import json
@@ -198,7 +198,7 @@ def start_server(handler_class):
         allow_reuse_address = True
         needs_reload = False
     
-    with ReusableTCPServer(("", PORT), handler_class) as httpd:
+    with ReusableTCPServer(("127.0.0.1", PORT), handler_class) as httpd:
         print(f"Starting HTTP server at http://localhost:{PORT}")
         print(f"Watching for changes in {SOURCE_DIR}...")
         print("Press Ctrl+C to stop\n")

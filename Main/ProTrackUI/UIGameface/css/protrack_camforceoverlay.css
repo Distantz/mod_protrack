@@ -50,6 +50,8 @@
 
 .ProTrackUI_flexRow>* {
     flex: 1;
+    flex-basis: 0%;
+    min-width: 0;
 }
 
 .ProTrackUI_distributeRow {
@@ -83,8 +85,9 @@
     width: 1.75rem;
 }
 
-.ProTrackUI_metricText {
-    flex: 1;
-    margin-left: 0.3rem;
-    min-width: 12rem;
+.ProTrackUI_metricsRow {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    width: 100%;
 }
