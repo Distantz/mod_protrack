@@ -73,6 +73,7 @@ class CamForceOverlay extends preact.Component {
         visible: false,
         heartline: 0.0,
         visibleTabIndex: 0,
+        trackMode: 0,
         posG: 1.0,
         latG: 0.0,
         time: 0.0
@@ -90,6 +91,9 @@ class CamForceOverlay extends preact.Component {
     onChangeTab = (visibleIndex) => {
         this.setState({ visibleTabIndex: visibleIndex });
     }
+    onTrackModeChange = (newTrackMode) => {
+        this.setState({ trackMode: newTrackMode });
+    }
     render(props, state) {
         if (!this.state.visible) {
             return preact.h("div", { className: "ProTrackUI_root" });
@@ -98,7 +102,7 @@ class CamForceOverlay extends preact.Component {
         const items = [
             "[Loc_ProTrack_TM_Normal]",
             "[Loc_ProTrack_TM_ForceLock]",
-            "[Loc_ProTrack_TM_AdvMove]",
+            // "[Loc_ProTrack_TM_Gizmo]",
         ];
 
         var tabs = [
@@ -189,7 +193,7 @@ class CamForceOverlay extends preact.Component {
 
             preact.h("div", { key: "tab2", className: "ProTrackUI_panelInner" },
                 preact.h("div", { className: "ProTrackUI_flexRow" },
-                    preact.h(ListStepperRow, { showInputIcon: true, modal: true, items: items, label: "[Loc_ProTrack_TM_Label]" }),
+                    preact.h(ListStepperRow, { showInputIcon: true, modal: true, items: items, listIndex: state.trackMode, onChange: this.onTrackModeChange, label: "[Loc_ProTrack_TM_Label]" }),
                 )
             ),
 

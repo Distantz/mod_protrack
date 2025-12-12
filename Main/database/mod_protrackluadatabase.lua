@@ -40,7 +40,7 @@ end
 -- If your mod works, you should see this print message in your log when using ACSEDebug!
 function LuaDB.Init()
     -- Need 1.3 for the Hook Manager.
-    require("forgeutils.moddb").RegisterMod("Mod_ProTrack", 1.3)
+    require("forgeutils.moddb").RegisterMod("Mod_ProTrack", 1.51)
     logger:Info("Mod_ProTrack called Init()!")
     api.ui2.MapResources("ProTrackUI")
 
