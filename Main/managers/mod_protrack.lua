@@ -36,7 +36,7 @@ local UnitConversion = require("Helpers.UnitConversion")
 --/ Main class definition
 ---@class protrackManager
 local protrackManager = module(..., Mutators.Manager())
-protrackManager.dt = 0
+protrackManager.simulationTime = 0
 ---@type TrackEditMode?
 protrackManager.trackEditMode = nil
 protrackManager.inCamera = false
@@ -56,6 +56,15 @@ protrackManager.frictionValues = nil
 
 protrackManager.context = nil
 protrackManager.trackModeSelected = 0
+protrackManager.playingInDir = 0
+
+---Sets a value, while also setting to the datastore
+---@param name any
+---@param value any
+local function SetVariableWithDatastore(name, value)
+    protrackManager[name] = value
+    api.ui2.SetDataStoreElement(protrackManager.context, name, value)
+end
 
 --
 -- @Brief Init function for this manager
@@ -177,6 +186,13 @@ function protrackManager.Activate(self)
                 nil
             )
 
+            protrackManager.overlayUI:AddListener_PlayChanged(
+                function(newDir)
+                    SetVariableWithDatastore("playingInDir", newDir)
+                end,
+                nil
+            )
+
             -- Value listeners
 
             protrackManager.overlayUI:AddListener_HeartlineValueChanged(
@@ -211,23 +227,28 @@ function protrackManager.Activate(self)
                 end,
                 nil
             );
+
+            protrackManager.overlayUI:AddListener_TimeChanged(
+                function(newTime)
+                    self.simulationTime = newTime * Datastore.GetTimeLength()
+                end,
+                nil
+            );
         end
     )
 end
 
 function protrackManager.ZeroData(self)
-    self.line:ClearPoints()
-    Gizmo.SetMarkerGizmosVisible(false)
-    Gizmo.SetTrackGizmosVisible(false)
-    self:StopTrackCamera()
-    --Gizmo.SetVisible(false)
+    self:ClearWalkerOrigin()
     self.trackModeSelected = 0
     self.trackEditMode = nil
-    self.dt = 0
+    self.simulationTime = 0
     self.tWorldAPIs = nil
     self.inputManagerAPI = nil
     Datastore.tDatapoints = nil
-    Datastore.trackWalkerOrigin = nil
+
+    -- Datastore updates
+    SetVariableWithDatastore("playingInDir", 0)
 end
 
 function protrackManager.StartEditMode(self, trackEditMode)
@@ -287,6 +308,8 @@ function protrackManager.StartEditMode(self, trackEditMode)
             return true
         end
     )
+
+    protrackManager.overlayUI:Show()
 end
 
 function protrackManager.EndEditMode(self)
@@ -318,9 +341,8 @@ function protrackManager.NewTrainPosition(self)
     end
 
     -- set dt to 0 since we are moving refpoint
-    self.dt = 0
+    self.simulationTime = 0
     self:NewWalk()
-    protrackManager.overlayUI:Show()
 end
 
 function protrackManager.ClearWalkerOrigin(self)
@@ -329,6 +351,9 @@ function protrackManager.ClearWalkerOrigin(self)
     Gizmo.SetMarkerGizmosVisible(false)
     Gizmo.SetTrackGizmosVisible(false)
     self:StopTrackCamera()
+
+    -- Datastore
+    api.ui2.SetDataStoreElement(protrackManager.context, "hasData", false)
 end
 
 function protrackManager.NewWalk(self)
@@ -431,30 +456,41 @@ function protrackManager.Advance(self, deltaTime)
     end
 
     -- Work out direction
-    local direction = 0.0
+    local direction = 0
     if (self.inputManagerAPI:GetKeyDown("DecreaseBrushIntensity")) then
-        direction = direction - 1.0
+        direction = direction - 1
     end
     if (self.inputManagerAPI:GetKeyDown("IncreaseBrushIntensity")) then
-        direction = direction + 1.0
+        direction = direction + 1
+    end
+
+    -- If keybinds are not held, respect the playingDir
+    if (direction == 0) then
+        direction = self.playingInDir
     end
 
     -- Set gizmo visiblity
     --Gizmo.Visible(not self.inCamera)
 
-    if Datastore.HasData() then
+    local hasData = Datastore.HasData()
+    api.ui2.SetDataStoreElement(protrackManager.context, "hasData", hasData)
+
+    if hasData then
         if Datastore.trackWalkerOrigin == nil or Datastore.trackEntityTransform == nil then
             self:ClearWalkerOrigin()
             return
         end
 
         local timestep = api.time.GetDeltaTimeUnscaled()
-        self.dt = self.dt + timestep * direction
+        self.simulationTime = self.simulationTime + timestep * direction
 
         -- clamp dt to make it stay in bounds
-        self.dt = mathUtils.Clamp(self.dt, 0, Datastore.GetTimeLength())
+        self.simulationTime = mathUtils.Clamp(self.simulationTime, 0, Datastore.GetTimeLength())
 
-        local pt = Datastore.SampleDatapointAtTime(self.dt)
+        -- Set datastore
+        api.ui2.SetDataStoreElement(protrackManager.context, "time", self.simulationTime / Datastore.GetTimeLength())
+
+        local pt = Datastore.SampleDatapointAtTime(self.simulationTime)
         if pt == nil then
             return
         end
@@ -476,7 +512,7 @@ function protrackManager.Advance(self, deltaTime)
         Gizmo.SetMarkerData(wsTrans:WithPos(wsTrans:GetPos() + wsHeartlineOffset), pt.g)
 
         --  logger:Info("getting datapoints")
-        local indexDatapoint = Datastore.GetFloorIndexForTime(self.dt)
+        local indexDatapoint = Datastore.GetFloorIndexForTime(self.simulationTime)
 
         local numDatapoints = Datastore.GetNumDatapoints()
 

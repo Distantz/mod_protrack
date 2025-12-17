@@ -10,7 +10,6 @@ import * as Format from "/js/common/util/LocalisationUtil.js";
 import { loadDebugDefaultTools } from "/js/common/debug/DebugToolImports.js";
 import { loadCSS } from "/js/common/util/CSSUtil.js";
 
-import { Icon } from "/js/common/components/Icon.js";
 import { Slider } from '/js/project/components/Slider.js';
 import { Button } from '/js/project/components/Button.js';
 import { ListStepperRow } from '/js/project/components/ListStepperRow.js';
@@ -75,11 +74,14 @@ class CamForceOverlay extends preact.Component {
         visibleTabIndex: 0,
 
         // Editor data
+        hasData: false,
         inCamera: false,
         trackMode: 0,
         heartline: 0.0,
 
         // Playhead data
+        time: 0.0,
+        playingInDir: 0,
         posG: 1.0,
         latG: 0.0,
         time: 0.0
@@ -92,9 +94,23 @@ class CamForceOverlay extends preact.Component {
 
         // Bind to datastore
         this._helper = new DataStoreHelper();
+
         this._helper.addPropertyListener(["ProTrack"], "inCamera", (value) => {
             this.setState({ inCamera: value });
         });
+
+        this._helper.addPropertyListener(["ProTrack"], "playingInDir", (value) => {
+            this.setState({ playingInDir: value });
+        });
+
+        this._helper.addPropertyListener(["ProTrack"], "time", (value) => {
+            this.setState({ time: value });
+        });
+
+        this._helper.addPropertyListener(["ProTrack"], "hasData", (value) => {
+            this.setState({ hasData: value });
+        });
+
         this._helper.getAllPropertiesNow();
     }
     componentWillUnmount() {
@@ -121,7 +137,7 @@ class CamForceOverlay extends preact.Component {
             preact.h("div", { key: "tab1", className: "ProTrackUI_panelInner" },
 
                 // Row 1
-                false && preact.h("div", { className: "ProTrackUI_distributeRow" },
+                preact.h("div", { className: "ProTrackUI_distributeRow" },
                     preact.h("div", { className: "ProTrackUI_flexRow" },
                         preact.h(Slider, {
                             // label: '[Loc_ProTrack_Scrub]',
@@ -131,7 +147,8 @@ class CamForceOverlay extends preact.Component {
                             formatter: Format.float_3DP,
                             value: state.time,
                             onChange: this.onTimeChanged,
-                            focusable: true
+                            focusable: true,
+                            disabled: !state.hasData
                         })
                     ),
                 ),
@@ -150,35 +167,43 @@ class CamForceOverlay extends preact.Component {
                             icon: 'img/icons/redo.svg',
                             label: Format.stringLiteral('Resimulate'),
                             onSelect: this.onResimulate,
+                            disabled: !state.hasData
                         }),
                         preact.h(Button, {
                             icon: 'img/icons/camera.svg',
                             label: Format.stringLiteral(state.inCamera ? 'Exit Track Cam' : "Enter Track Cam"),
                             onSelect: this.onChangeCam,
+                            disabled: !state.hasData
                         }),
                     ),
 
                     // Middle spacer
                     preact.h("div", { className: "ProTrackUI_flexRow" }),
 
-                    false && preact.h("div", { className: "ProTrackUI_minRow ProTrackUI_innerGap" },
-                        preact.h(Button, {
-                            icon: 'img/icons/minus.svg',
-                            // modifiers: 'negative'
+                    preact.h("div", { className: "ProTrackUI_minRow ProTrackUI_innerGap" },
+                        state.playingInDir != -1 && preact.h(Button, {
+                            icon: 'img/icons/arrow_left.svg',
+                            onSelect: this.onScrubBackwards,
+                            disabled: !state.hasData
                         }),
-                        preact.h(Button, {
-                            icon: 'img/icons/play.svg',
-                            modifiers: 'positive'
+
+                        state.playingInDir != 0 && preact.h(Button, {
+                            icon: 'img/icons/pause.svg',
+                            onSelect: this.onScrubPause,
+                            modifiers: 'negative',
+                            disabled: !state.hasData
                         }),
-                        preact.h(Button, {
-                            icon: 'img/icons/plus.svg',
-                            // modifiers: 'positive'
+
+                        state.playingInDir != 1 && preact.h(Button, {
+                            icon: 'img/icons/arrow_right.svg',
+                            onSelect: this.onScrubForwards,
+                            disabled: !state.hasData
                         }),
                     ),
                 ),
 
                 // Row 3
-                preact.h("div", { className: "ProTrackUI_flexRow ProTrackUI_innerGap" },
+                state.hasData && preact.h("div", { className: "ProTrackUI_flexRow ProTrackUI_innerGap" },
                     preact.h(KeyframeMetric, {
                         icon: "img/icons/clock.svg",
                         formatter: (v) => v
@@ -278,69 +303,6 @@ class CamForceOverlay extends preact.Component {
                 },
             )
         );
-
-        // return preact.h("div", { className: "ProTrackUI_root" },
-        //     preact.h("div", { className: "ProTrackUI_overlay" },
-        //         // Row one, slider
-        //         preact.h("div", { className: "ProTrackUI_row" },
-        //             preact.h(Slider, {
-        //                 // label: '[Loc_ProTrack_Scrub]',
-        //                 rootClassName: 'ProTrackUI_stretch',
-        //                 min: 0,
-        //                 max: 1,
-        //                 step: 0.0001,
-        //                 formatter: Format.float_3DP,
-        //                 value: state.time,
-        //                 onChange: this.onTimeChanged,
-        //                 focusable: true
-        //             }),
-        //         ),
-
-        //         // Row two
-        //         preact.h("div", { className: "ProTrackUI_row" },
-        //             preact.h(CamForceKeyframes, null),
-        //             preact.h(CamForceVert, null),
-        //             preact.h(CamForceLat, null),
-        //             preact.h(CamForceSpeed, null)
-        //         ),
-
-        //         preact.h("div", { className: "ProTrackUI_row" },
-        //             preact.h(Slider, {
-        //                 label: '[Loc_ProTrack_Heartline]',
-        //                 modifiers: 'inner',
-        //                 min: -2.0,
-        //                 max: 2.0,
-        //                 step: 0.05,
-        //                 formatter: Format.distanceUnit_2DP,
-        //                 value: state.heartline,
-        //                 onChange: this.onHeartlineChanged,
-        //                 focusable: true
-        //             }),
-        //             preact.h(Slider, {
-        //                 label: '[Loc_ProTrack_PosG]',
-        //                 modifiers: 'inner',
-        //                 min: -2.0,
-        //                 max: 6.0,
-        //                 step: 0.05,
-        //                 formatter: Format.gForce_2DP,
-        //                 value: state.posG,
-        //                 onChange: this.onPosGChanged,
-        //                 focusable: true
-        //             }),
-        //             preact.h(Slider, {
-        //                 label: '[Loc_ProTrack_LatG]',
-        //                 modifiers: 'inner',
-        //                 min: -2.0,
-        //                 max: 2.0,
-        //                 step: 0.05,
-        //                 formatter: Format.gForce_2DP,
-        //                 value: state.latG,
-        //                 onChange: this.onLatGChanged,
-        //                 focusable: true
-        //             }),
-        //         )
-        //     ),
-        // );
     }
 
     // Engine event listeners
@@ -363,6 +325,18 @@ class CamForceOverlay extends preact.Component {
         Engine.sendEvent("Protrack_ChangeCamModeRequested");
     }
 
+    onScrubBackwards = () => {
+        Engine.sendEvent("Protrack_PlayChanged", -1);
+    }
+
+    onScrubForwards = () => {
+        Engine.sendEvent("Protrack_PlayChanged", 1);
+    }
+
+    onScrubPause = () => {
+        Engine.sendEvent("Protrack_PlayChanged", 0);
+    }
+
     // Value listeners
 
     onChangeTab = (visibleIndex) => {
@@ -373,6 +347,17 @@ class CamForceOverlay extends preact.Component {
         this.setState({ trackMode: newTrackMode });
         Engine.sendEvent("ProtrackTrackModeChanged", newTrackMode);
     }
+
+    onTimeChanged = (value) => {
+
+        // Pause if playing (bad for UX)
+        if (this.state.playingInDir != 0) {
+            this.onScrubPause();
+        }
+
+        this.setState({ time: value });
+        Engine.sendEvent("Protrack_TimeChanged", value);
+    };
 
     onLatGChanged = (value) => {
         this.setState({ latG: value });
@@ -396,143 +381,5 @@ class CamForceOverlay extends preact.Component {
     }
     onHide = () => {
         this.setState({ visible: false });
-    }
-}
-
-class CamForceKeyframes extends preact.Component {
-    state = {
-        currentKeyframe: 959,
-        keyframeCount: 1000
-    }
-    _helper;
-    componentWillUnmount() {
-        this._helper.clear();
-        this._helper = undefined;
-    }
-    componentWillMount() {
-        this._helper = new DataStoreHelper();
-        this._helper.addPropertyListener(["ProTrack"], "currKeyframe", (value) => {
-            this.setState({ currentKeyframe: value });
-        });
-        this._helper.addPropertyListener(["ProTrack"], "keyframeCount", (value) => {
-            this.setState({ keyframeCount: value });
-        });
-        this._helper.getAllPropertiesNow();
-
-    }
-    render(props, state) {
-        return preact.h("div", { className: "ProTrackUI_minRow" },
-            preact.h(Icon, { src: "img/icons/clock.svg", rootClassName: "ProTrackUI_icon" }),
-            preact.h("div", { className: "ProTrackUI_metricText" }, `${state.currentKeyframe}/${state.keyframeCount}`)
-        );
-    }
-}
-
-class CamForceVert extends preact.Component {
-    state = {
-        verticalGForce: 0.00
-    }
-    _helper;
-    componentWillUnmount() {
-        this._helper.clear();
-        this._helper = undefined;
-    }
-    componentWillMount() {
-        this._helper = new DataStoreHelper();
-        this._helper.addPropertyListener(["ProTrack"], "vertGForce", (value) => {
-            this.setState({ verticalGForce: value });
-        });
-        this._helper.getAllPropertiesNow();
-
-    }
-    render(props, state) {
-
-        var icon = "img/icons/protrack_vertg_"
-        const thres = 0.1
-
-        if (state.verticalGForce > thres) {
-            icon += "d.svg"
-        }
-        else if (-state.verticalGForce > thres) {
-            icon += "u.svg"
-        }
-        else {
-            icon += "n.svg"
-        }
-
-        const formattedValue = Localisation.translate(Format.gForce_2DP(state.verticalGForce));
-        const displayValue = state.lateralGForce >= 0 ? `\u00A0${formattedValue}` : formattedValue;
-
-        return preact.h("div", { className: "ProTrackUI_minRow" },
-            preact.h(Icon, { src: icon, rootClassName: "ProTrackUI_icon" }),
-            preact.h("div", { className: "ProTrackUI_metricText" }, displayValue)
-        );
-    }
-}
-
-class CamForceLat extends preact.Component {
-    state = {
-        lateralGForce: 0.00
-    }
-    _helper;
-    componentWillUnmount() {
-        this._helper.clear();
-        this._helper = undefined;
-    }
-    componentWillMount() {
-        this._helper = new DataStoreHelper();
-        this._helper.addPropertyListener(["ProTrack"], "latGForce", (value) => {
-            this.setState({ lateralGForce: value });
-        });
-        this._helper.getAllPropertiesNow();
-
-    }
-    render(props, state) {
-
-        var icon = "img/icons/protrack_latg_"
-        const thres = 0.25
-
-        if (state.lateralGForce > thres) {
-            icon += "l.svg"
-        }
-        else if (-state.lateralGForce > thres) {
-            icon += "r.svg"
-        }
-        else {
-            icon += "n.svg"
-        }
-
-        const formattedValue = Localisation.translate(Format.gForce_2DP(state.lateralGForce));
-        const displayValue = state.lateralGForce >= 0 ? `\u00A0${formattedValue}` : formattedValue;
-
-        return preact.h("div", { className: "ProTrackUI_minRow" },
-            preact.h(Icon, { src: icon, rootClassName: "ProTrackUI_icon" }),
-            preact.h("div", { className: "ProTrackUI_metricText" }, displayValue)
-        );
-    }
-}
-
-class CamForceSpeed extends preact.Component {
-    state = {
-        speed: 0.00
-    }
-    _helper;
-    componentWillUnmount() {
-        this._helper.clear();
-        this._helper = undefined;
-    }
-    componentWillMount() {
-        this._helper = new DataStoreHelper();
-        this._helper.addPropertyListener(["ProTrack"], "speed", (value) => {
-            this.setState({ speed: value });
-        });
-        this._helper.getAllPropertiesNow();
-
-    }
-    render(props, state) {
-        return preact.h("div", { className: "ProTrackUI_minRow" },
-            preact.h(Icon, { src: "img/icons/maxSpeed.svg", rootClassName: "ProTrackUI_icon" }),
-            preact.h("div", { className: "ProTrackUI_metricText" }, Localisation.translate(Format.speedUnit_1DP(state.speed)))
-        );
     }
 }

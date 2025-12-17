@@ -96,6 +96,6 @@ export class KeyframeMetric extends MetricDisplay {
 
     formatValue() {
         const { currentKeyframe, keyframeCount } = this.state;
-        return `${currentKeyframe}/${keyframeCount}`;
+        return `${currentKeyframe ?? 0}/${keyframeCount ?? 0}`;
     }
 }
