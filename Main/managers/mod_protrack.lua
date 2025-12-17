@@ -13,7 +13,7 @@ local api = global.api
 local pairs = global.pairs
 local coroutine = global.coroutine
 local require = global.require
-local mathUtils = require "Common.mathUtils"
+local mathUtils = require("Common.mathUtils")
 
 ---@diagnostic disable-next-line: deprecated
 local module = global.module
@@ -21,6 +21,7 @@ local module = global.module
 local Object = require("Common.object")
 local Mutators = require("Environment.ModuleMutators")
 local Vector3 = require("Vector3")
+local HookManager = require("forgeutils.hookmanager")
 local Utils = require("protrack.utils")
 local FvdMode = require("protrack.fvd.fvdmode")
 local Gizmo = require("protrack.displaygizmo")
@@ -83,6 +84,16 @@ function protrackManager.Activate(self)
     self.line = require("protrack.displayline"):new()
     logger:Info("Done gizmo setup")
 
+    -- Setup hook into the track widgets UI
+    HookManager:AddHook(
+        "Editors.Track.TrackEditHandles",
+        "SetCoasterWidgets",
+        function(originalMethod, slf, _bUsingGamepad, _bUsingSecondary)
+            logger:Info("SetCoasterWidgets")
+            originalMethod(slf, _bUsingGamepad, _bUsingSecondary)
+        end
+    )
+
     local trackEditModeModule = require("Editors.Track.TrackEditMode")
     local baseTransitionIn = trackEditModeModule.TransitionIn
     trackEditModeModule.TransitionIn = function(slf, _startTrack, _startSelection, _bDontRequestTrainRespawn)
@@ -134,6 +145,15 @@ function protrackManager.Activate(self)
                 function(newVal)
                     FvdMode.latG = newVal
                     self:SetTrackBuilderDirty()
+                end,
+                nil
+            );
+
+            protrackManager.overlayUI:AddListener_TrackModeChanged(
+                function(newTrackMode)
+                    logger:Info("New Track mode: " .. global.tostring(newTrackMode))
+                    -- FvdMode.latG = newVal
+                    -- self:SetTrackBuilderDirty()
                 end,
                 nil
             );
