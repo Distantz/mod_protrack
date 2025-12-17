@@ -39,6 +39,7 @@ local protrackManager = module(..., Mutators.Manager())
 protrackManager.simulationTime = 0
 ---@type TrackEditMode?
 protrackManager.trackEditMode = nil
+protrackManager.editingTrackEnd = false
 protrackManager.inCamera = false
 protrackManager.cameraIsHeartlineMode = false
 protrackManager.inputEventHandler = nil
@@ -242,6 +243,7 @@ function protrackManager.ZeroData(self)
     self:ClearWalkerOrigin()
     self.trackModeSelected = 0
     self.trackEditMode = nil
+    self.editingTrackEnd = false
     self.simulationTime = 0
     self.tWorldAPIs = nil
     self.inputManagerAPI = nil
@@ -449,6 +451,13 @@ function protrackManager.Advance(self, deltaTime)
     end
 
     self.inputEventHandler:CheckEvents()
+
+    -- Check selection
+    local newEndEdit = self.trackEditMode.tActiveData:IsAddingAfterSelection()
+    if (newEndEdit ~= self.editingTrackEnd) then
+        self.editingTrackEnd = newEndEdit
+        logger:Info(global.tostring(newEndEdit))
+    end
 
     -- If a change has happened, we want to know!
     if (self.trackEditMode:HasRequestedChange()) then
