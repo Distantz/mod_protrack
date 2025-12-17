@@ -23,7 +23,8 @@ local Mutators = require("Environment.ModuleMutators")
 local Vector3 = require("Vector3")
 local HookManager = require("forgeutils.hookmanager")
 local Utils = require("protrack.utils")
-local FvdMode = require("protrack.fvd.fvdmode")
+local FvdMode = require("protrack.modes.fvdmode")
+local AdvMoveMode = require("protrack.modes.advancedmovemode")
 local Gizmo = require("protrack.displaygizmo")
 local Cam = require("protrack.cam")
 local Datastore = require("protrack.datastore")
@@ -128,7 +129,7 @@ function protrackManager.Activate(self)
             if (self.trackModeSelected == FVD_TRACKMODE) then
                 return FvdMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
             elseif (self.trackModeSelected == WIDGET_TRACKMODE) then
-
+                AdvMoveMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
             end
             return originalMethod(startT, tData)
         end
@@ -227,8 +228,7 @@ function protrackManager.Activate(self)
 
             protrackManager.overlayUI:AddListener_TrackModeChanged(
                 function(newTrackMode)
-                    self.trackModeSelected = newTrackMode
-                    self:SetTrackBuilderDirty()
+                    self:SwitchTrackMode(newTrackMode)
                 end,
                 nil
             );
@@ -335,7 +335,7 @@ function protrackManager.StartTrackEdit(self)
     logger:Info("Start edit for mode: " .. global.tostring(self.trackModeSelected))
 
     if self.trackModeSelected == WIDGET_TRACKMODE then
-        -- tbc
+        AdvMoveMode.StartEdit()
     end
 end
 
@@ -345,7 +345,7 @@ function protrackManager.EndTrackEdit(self)
     if self.trackModeSelected == FVD_TRACKMODE then
         FvdMode.EndEdit()
     elseif self.trackModeSelected == WIDGET_TRACKMODE then
-        -- tbc
+        AdvMoveMode.EndEdit()
     end
 end
 
@@ -485,7 +485,11 @@ function protrackManager.Advance(self, deltaTime)
     local newEndEdit = self.trackEditMode.tActiveData:IsAddingAfterSelection()
     if (newEndEdit ~= self.editingTrackEnd) then
         self.editingTrackEnd = newEndEdit
-        logger:Info(global.tostring(newEndEdit))
+        if self.editingTrackEnd then
+            self:StartTrackEdit()
+        else
+            self:EndTrackEdit()
+        end
     end
 
     -- If a change has happened, we want to know!

@@ -129,7 +129,7 @@ class CamForceOverlay extends preact.Component {
         const items = [
             "[Loc_ProTrack_TM_Normal]",
             "[Loc_ProTrack_TM_ForceLock]",
-            // "[Loc_ProTrack_TM_Gizmo]",
+            "[Loc_ProTrack_TM_Gizmo]",
         ];
 
         var tabs = [

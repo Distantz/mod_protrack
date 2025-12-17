@@ -4,9 +4,7 @@
 -- You can see that happening here with the table local.
 local global = _G
 local table = global.table
-local HookManager = require("forgeutils.hookmanager")
 local FrictionHelper = require("database.frictionhelper")
-local FvdMode = require("protrack.fvd.fvdmode")
 
 -- Since api isn't default lua, this has a warning.
 -- Disable it so we don't get weird errors if using LuaCATS.
