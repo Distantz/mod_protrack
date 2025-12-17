@@ -43,12 +43,6 @@ function LuaDB.Init()
     require("forgeutils.moddb").RegisterMod("Mod_ProTrack", 1.51)
     logger:Info("Mod_ProTrack called Init()!")
     api.ui2.MapResources("ProTrackUI")
-
-    HookManager:AddHook(
-        "Editors.Track.TrackEditValues",
-        "StaticBuildEndPoint",
-        FvdMode.StaticBuildEndPoint_Hook
-    )
 end
 
 LuaDB.Shutdown = function()

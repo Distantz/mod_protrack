@@ -51,6 +51,16 @@ function ForceOverlay:AddListener_LatGValueChanged(_callback, _self)
 	self:AddEventListener("ProtrackLatGChanged", 1, _callback, _self)
 end
 
+function ForceOverlay:AddListener_TrackModeChanged(_callback, _self)
+	---@diagnostic disable-next-line: undefined-field
+	self:AddEventListener("ProtrackTrackModeChanged", 1, _callback, _self)
+end
+
+function ForceOverlay:ResetTrackMode()
+	---@diagnostic disable-next-line: undefined-field
+	self:TriggerEventAtNextAdvance("Protrack_ResetTrackMode")
+end
+
 function ForceOverlay:Show()
 	logger:Info("Showing Overlay")
 	---@diagnostic disable-next-line: undefined-field

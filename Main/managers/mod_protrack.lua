@@ -13,7 +13,7 @@ local api = global.api
 local pairs = global.pairs
 local coroutine = global.coroutine
 local require = global.require
-local mathUtils = require "Common.mathUtils"
+local mathUtils = require("Common.mathUtils")
 
 ---@diagnostic disable-next-line: deprecated
 local module = global.module
@@ -21,6 +21,7 @@ local module = global.module
 local Object = require("Common.object")
 local Mutators = require("Environment.ModuleMutators")
 local Vector3 = require("Vector3")
+local HookManager = require("forgeutils.hookmanager")
 local Utils = require("protrack.utils")
 local FvdMode = require("protrack.fvd.fvdmode")
 local Gizmo = require("protrack.displaygizmo")
@@ -54,6 +55,7 @@ protrackManager.overlayUI = nil
 protrackManager.frictionValues = nil
 
 protrackManager.context = nil
+protrackManager.trackModeSelected = 0
 
 --
 -- @Brief Init function for this manager
@@ -82,6 +84,38 @@ function protrackManager.Activate(self)
     self.gizmoInitCoroutine = Gizmo.InitGizmo()
     self.line = require("protrack.displayline"):new()
     logger:Info("Done gizmo setup")
+
+    -- Setup hook into the track widgets UI
+    HookManager:AddHook(
+        "UI.CoasterWidgetsUI",
+        "SetWidgets",
+        function(originalMethod, slf, _tItems)
+            if (self.trackModeSelected == 1) then -- forcelock, remove 1 and 3
+                _tItems[1] = {}
+                _tItems[3] = {}
+            elseif (self.trackModeSelected == 2) then -- Advanced widget, remove all
+                _tItems[1] = {}
+                _tItems[2] = {}
+                _tItems[3] = {}
+                _tItems[4] = {}
+            end
+            originalMethod(slf, _tItems)
+        end
+    )
+
+    -- Setup hook for the build end point
+    HookManager:AddHook(
+        "Editors.Track.TrackEditValues",
+        "StaticBuildEndPoint",
+        function(originalMethod, startT, tData)
+            if (self.trackModeSelected == 1) then
+                return FvdMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
+            elseif (self.trackModeSelected == 2) then
+
+            end
+            return originalMethod(startT, tData)
+        end
+    )
 
     local trackEditModeModule = require("Editors.Track.TrackEditMode")
     local baseTransitionIn = trackEditModeModule.TransitionIn
@@ -137,6 +171,14 @@ function protrackManager.Activate(self)
                 end,
                 nil
             );
+
+            protrackManager.overlayUI:AddListener_TrackModeChanged(
+                function(newTrackMode)
+                    self.trackModeSelected = newTrackMode
+                    self:SetTrackBuilderDirty()
+                end,
+                nil
+            );
         end
     )
 
@@ -149,6 +191,7 @@ function protrackManager.ZeroData(self)
     Gizmo.SetTrackGizmosVisible(false)
     self:StopTrackCamera()
     --Gizmo.SetVisible(false)
+    self.trackModeSelected = 0
     self.trackEditMode = nil
     self.dt = 0
     self.tWorldAPIs = nil
@@ -219,11 +262,13 @@ end
 function protrackManager.EndEditMode(self)
     self:ZeroData()
     protrackManager.overlayUI:Hide()
+    protrackManager.overlayUI:ResetTrackMode()
 end
 
 function protrackManager.SetTrackBuilderDirty(self)
     if (self.trackEditMode ~= nil and self.trackEditMode.tActiveData ~= nil) then
         self.trackEditMode.tActiveData.bEditValuesDirty = true
+        self.trackEditMode.trackHandles:SetTrackWidgetsFromEditValues() -- refresh ui widgets
     end
 end
 
@@ -235,6 +280,10 @@ function protrackManager.NewTrainPosition(self)
     -- Early exit
     Datastore.trackWalkerOrigin = Utils.GetFirstCarData(trackEntity)
     if Datastore.trackWalkerOrigin == nil then
+        return
+    end
+
+    if mathUtils.ApproxEquals(Datastore.trackWalkerOrigin.speed, 0) then
         return
     end
 
