@@ -36,6 +36,25 @@ function ForceOverlay:new(_fnOnReadyCallback)
 	return oNewForceOverlay
 end
 
+-- Button responders
+
+function ForceOverlay:AddListener_ReanchorRequested(_callback, _self)
+	---@diagnostic disable-next-line: undefined-field
+	self:AddEventListener("Protrack_ReanchorRequested", 1, _callback, _self)
+end
+
+function ForceOverlay:AddListener_ResimulateRequested(_callback, _self)
+	---@diagnostic disable-next-line: undefined-field
+	self:AddEventListener("Protrack_ResimulateRequested", 1, _callback, _self)
+end
+
+function ForceOverlay:AddListener_ChangeCamModeRequested(_callback, _self)
+	---@diagnostic disable-next-line: undefined-field
+	self:AddEventListener("Protrack_ChangeCamModeRequested", 1, _callback, _self)
+end
+
+-- Value change listeners
+
 function ForceOverlay:AddListener_HeartlineValueChanged(_callback, _self)
 	---@diagnostic disable-next-line: undefined-field
 	self:AddEventListener("ProtrackHeartlineChanged", 1, _callback, _self)

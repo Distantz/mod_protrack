@@ -78,6 +78,9 @@ end
 -- work.
 --
 function protrackManager.Activate(self)
+    -- Activate datastore context, this is essential for UI integration
+    protrackManager.context = api.ui2.GetDataStoreContext("ProTrack")
+
     -- Our entry point simply calls inject on the submode override file:
     logger:Info("Injecting...")
     Cam.GetPreviewCameraEntity()
@@ -147,6 +150,35 @@ function protrackManager.Activate(self)
         function()
             logger:Info("UI is setup and ready")
 
+            -- Button listeners
+
+            protrackManager.overlayUI:AddListener_ReanchorRequested(
+                function()
+                    self:NewTrainPosition()
+                end,
+                nil
+            )
+
+            protrackManager.overlayUI:AddListener_ResimulateRequested(
+                function()
+                    self:NewWalk()
+                end,
+                nil
+            )
+
+            protrackManager.overlayUI:AddListener_ChangeCamModeRequested(
+                function()
+                    if not self.inCamera then
+                        self:StartTrackCamera()
+                    else
+                        self:StopTrackCamera()
+                    end
+                end,
+                nil
+            )
+
+            -- Value listeners
+
             protrackManager.overlayUI:AddListener_HeartlineValueChanged(
                 function(newVal)
                     Datastore.heartlineOffset = Vector3:new(0, newVal, 0)
@@ -181,8 +213,6 @@ function protrackManager.Activate(self)
             );
         end
     )
-
-    protrackManager.context = api.ui2.GetDataStoreContext("ProTrack")
 end
 
 function protrackManager.ZeroData(self)
@@ -361,6 +391,8 @@ function protrackManager.StartTrackCamera(self)
         Cam.StartRideCamera()
         self.inCamera = true
     end
+
+    api.ui2.SetDataStoreElement(protrackManager.context, "inCamera", self.inCamera)
 end
 
 function protrackManager.StopTrackCamera(self)
@@ -371,6 +403,8 @@ function protrackManager.StopTrackCamera(self)
         Cam.StopRideCamera()
         self.inCamera = false
     end
+
+    api.ui2.SetDataStoreElement(protrackManager.context, "inCamera", self.inCamera)
 end
 
 function protrackManager.Advance(self, deltaTime)

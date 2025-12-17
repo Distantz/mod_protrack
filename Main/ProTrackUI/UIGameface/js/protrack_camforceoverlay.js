@@ -70,37 +70,41 @@ class CamForceOverlay extends preact.Component {
         moduleName: "ProTrackUI"
     };
     state = {
+        // Ui data
         visible: false,
-        heartline: 0.0,
         visibleTabIndex: 0,
+
+        // Editor data
+        inCamera: false,
         trackMode: 0,
+        heartline: 0.0,
+
+        // Playhead data
         posG: 1.0,
         latG: 0.0,
         time: 0.0
     };
+    _helper = undefined;
     componentWillMount() {
         Engine.addListener("Show", this.onShow);
         Engine.addListener("Hide", this.onHide);
         Engine.addListener("Protrack_ResetTrackMode", this.onResetTrackMode);
 
+        // Bind to datastore
+        this._helper = new DataStoreHelper();
+        this._helper.addPropertyListener(["ProTrack"], "inCamera", (value) => {
+            this.setState({ inCamera: value });
+        });
+        this._helper.getAllPropertiesNow();
     }
     componentWillUnmount() {
         Engine.removeListener("Show", this.onShow);
         Engine.removeListener("Hide", this.onHide);
         Engine.removeListener("Protrack_ResetTrackMode", this.onResetTrackMode);
+        this._helper.clear();
+        this._helper = undefined;
     }
 
-    onResetTrackMode = () => {
-        this.onTrackModeChange(0)
-    }
-
-    onChangeTab = (visibleIndex) => {
-        this.setState({ visibleTabIndex: visibleIndex });
-    }
-    onTrackModeChange = (newTrackMode) => {
-        this.setState({ trackMode: newTrackMode });
-        Engine.sendEvent("ProtrackTrackModeChanged", newTrackMode);
-    }
     render(props, state) {
         if (!this.state.visible) {
             return preact.h("div", { className: "ProTrackUI_root" });
@@ -115,8 +119,8 @@ class CamForceOverlay extends preact.Component {
         var tabs = [
             // Tab one, force viz
             preact.h("div", { key: "tab1", className: "ProTrackUI_panelInner" },
-                // Row 1
 
+                // Row 1
                 false && preact.h("div", { className: "ProTrackUI_distributeRow" },
                     preact.h("div", { className: "ProTrackUI_flexRow" },
                         preact.h(Slider, {
@@ -139,15 +143,18 @@ class CamForceOverlay extends preact.Component {
                     preact.h("div", { className: "ProTrackUI_minRow ProTrackUI_innerGap" },
                         preact.h(Button, {
                             icon: 'img/icons/locate.svg',
-                            label: Format.stringLiteral('Anchor')
+                            label: Format.stringLiteral('Anchor'),
+                            onSelect: this.onReanchor,
                         }),
                         preact.h(Button, {
                             icon: 'img/icons/redo.svg',
-                            label: Format.stringLiteral('Resimulate')
+                            label: Format.stringLiteral('Resimulate'),
+                            onSelect: this.onResimulate,
                         }),
                         preact.h(Button, {
                             icon: 'img/icons/camera.svg',
-                            label: Format.stringLiteral('Track Cam')
+                            label: Format.stringLiteral(state.inCamera ? 'Exit Track Cam' : "Enter Track Cam"),
+                            onSelect: this.onChangeCam,
                         }),
                     ),
 
@@ -198,6 +205,7 @@ class CamForceOverlay extends preact.Component {
                 )
             ),
 
+            // Tab 2, track tools
             preact.h("div", { key: "tab2", className: "ProTrackUI_panelInner" },
                 preact.h("div", { className: "ProTrackUI_flexRow" },
                     preact.h(ListStepperRow, { showInputIcon: true, modal: true, items: items, listIndex: state.trackMode, onChange: this.onTrackModeChange, label: "[Loc_ProTrack_TM_Label]" }),
@@ -230,7 +238,7 @@ class CamForceOverlay extends preact.Component {
                 ),
             ),
 
-            // Tab 2, settings
+            // Tab 3, settings
             preact.h("div", { key: "tab3", className: "ProTrackUI_panelInner" },
                 preact.h("div", { className: "ProTrackUI_flexRow" },
                     preact.h(Slider, {
@@ -335,6 +343,37 @@ class CamForceOverlay extends preact.Component {
         // );
     }
 
+    // Engine event listeners
+
+    onResetTrackMode = () => {
+        this.onTrackModeChange(0)
+    }
+
+    // Button responders
+
+    onReanchor = () => {
+        Engine.sendEvent("Protrack_ReanchorRequested");
+    }
+
+    onResimulate = () => {
+        Engine.sendEvent("Protrack_ResimulateRequested");
+    }
+
+    onChangeCam = () => {
+        Engine.sendEvent("Protrack_ChangeCamModeRequested");
+    }
+
+    // Value listeners
+
+    onChangeTab = (visibleIndex) => {
+        this.setState({ visibleTabIndex: visibleIndex });
+    }
+
+    onTrackModeChange = (newTrackMode) => {
+        this.setState({ trackMode: newTrackMode });
+        Engine.sendEvent("ProtrackTrackModeChanged", newTrackMode);
+    }
+
     onLatGChanged = (value) => {
         this.setState({ latG: value });
         Engine.sendEvent("ProtrackLatGChanged", value);
@@ -350,10 +389,7 @@ class CamForceOverlay extends preact.Component {
         Engine.sendEvent("ProtrackHeartlineChanged", value);
     };
 
-    onTimeChanged = (value) => {
-        this.setState({ time: value });
-        // Engine.sendEvent("ProtrackHeartlineChanged", value);
-    };
+    // Engine visibility listeners
 
     onShow = () => {
         this.setState({ visible: true });
