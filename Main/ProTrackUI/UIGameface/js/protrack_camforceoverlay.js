@@ -70,24 +70,39 @@ class CamForceOverlay extends preact.Component {
         moduleName: "ProTrackUI"
     };
     state = {
+        // Ui data
         visible: false,
-        heartline: 0.0,
         visibleTabIndex: 0,
+
+        // Editor data
+        inCamera: false,
         trackMode: 0,
+        heartline: 0.0,
+
+        // Playhead data
         posG: 1.0,
         latG: 0.0,
         time: 0.0
     };
+    _helper = undefined;
     componentWillMount() {
         Engine.addListener("Show", this.onShow);
         Engine.addListener("Hide", this.onHide);
         Engine.addListener("Protrack_ResetTrackMode", this.onResetTrackMode);
 
+        // Bind to datastore
+        this._helper = new DataStoreHelper();
+        this._helper.addPropertyListener(["ProTrack"], "inCamera", (value) => {
+            this.setState({ inCamera: value });
+        });
+        this._helper.getAllPropertiesNow();
     }
     componentWillUnmount() {
         Engine.removeListener("Show", this.onShow);
         Engine.removeListener("Hide", this.onHide);
         Engine.removeListener("Protrack_ResetTrackMode", this.onResetTrackMode);
+        this._helper.clear();
+        this._helper = undefined;
     }
 
     render(props, state) {
@@ -138,7 +153,7 @@ class CamForceOverlay extends preact.Component {
                         }),
                         preact.h(Button, {
                             icon: 'img/icons/camera.svg',
-                            label: Format.stringLiteral('Track Cam'),
+                            label: Format.stringLiteral(state.inCamera ? 'Exit Track Cam' : "Enter Track Cam"),
                             onSelect: this.onChangeCam,
                         }),
                     ),
