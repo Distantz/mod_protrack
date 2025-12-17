@@ -93,6 +93,7 @@ class CamForceOverlay extends preact.Component {
     }
     onTrackModeChange = (newTrackMode) => {
         this.setState({ trackMode: newTrackMode });
+        Engine.sendEvent("ProtrackTrackModeChanged", newTrackMode);
     }
     render(props, state) {
         if (!this.state.visible) {
