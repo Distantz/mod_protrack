@@ -59,6 +59,10 @@ protrackManager.context = nil
 protrackManager.trackModeSelected = 0
 protrackManager.playingInDir = 0
 
+local NORMAL_TRACKMODE = 0
+local FVD_TRACKMODE = 1
+local WIDGET_TRACKMODE = 2
+
 ---Sets a value, while also setting to the datastore
 ---@param name any
 ---@param value any
@@ -103,10 +107,10 @@ function protrackManager.Activate(self)
         "UI.CoasterWidgetsUI",
         "SetWidgets",
         function(originalMethod, slf, _tItems)
-            if (self.trackModeSelected == 1) then -- forcelock, remove 1 and 3
+            if (self.trackModeSelected == FVD_TRACKMODE) then -- forcelock, remove 1 and 3
                 _tItems[1] = {}
                 _tItems[3] = {}
-            elseif (self.trackModeSelected == 2) then -- Advanced widget, remove all
+            elseif (self.trackModeSelected == WIDGET_TRACKMODE) then -- Advanced widget, remove all
                 _tItems[1] = {}
                 _tItems[2] = {}
                 _tItems[3] = {}
@@ -121,9 +125,9 @@ function protrackManager.Activate(self)
         "Editors.Track.TrackEditValues",
         "StaticBuildEndPoint",
         function(originalMethod, startT, tData)
-            if (self.trackModeSelected == 1) then
+            if (self.trackModeSelected == FVD_TRACKMODE) then
                 return FvdMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
-            elseif (self.trackModeSelected == 2) then
+            elseif (self.trackModeSelected == WIDGET_TRACKMODE) then
 
             end
             return originalMethod(startT, tData)
@@ -318,6 +322,31 @@ function protrackManager.EndEditMode(self)
     self:ZeroData()
     protrackManager.overlayUI:Hide()
     protrackManager.overlayUI:ResetTrackMode()
+end
+
+function protrackManager.SwitchTrackMode(self, newTrackMode)
+    self:EndTrackEdit()
+    self.trackModeSelected = newTrackMode
+    self:StartTrackEdit()
+    self:SetTrackBuilderDirty()
+end
+
+function protrackManager.StartTrackEdit(self)
+    logger:Info("Start edit for mode: " .. global.tostring(self.trackModeSelected))
+
+    if self.trackModeSelected == WIDGET_TRACKMODE then
+        -- tbc
+    end
+end
+
+function protrackManager.EndTrackEdit(self)
+    logger:Info("End edit for mode: " .. global.tostring(self.trackModeSelected))
+
+    if self.trackModeSelected == FVD_TRACKMODE then
+        FvdMode.EndEdit()
+    elseif self.trackModeSelected == WIDGET_TRACKMODE then
+        -- tbc
+    end
 end
 
 function protrackManager.SetTrackBuilderDirty(self)

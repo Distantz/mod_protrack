@@ -53,6 +53,12 @@ FvdMode.gravity = Vector3:new(0, -1, 0)
 ---@field heartVelo number Heartline velocity.
 ---@field heartDistance number Heartline distance travelled, in M.
 
+function FvdMode.EndEdit()
+    if (FvdMode.line) then
+        FvdMode.line:ClearPoints()
+    end
+end
+
 ---Returns a new point
 ---@param position any Coaster-space position.
 ---@param rotation any Coaster-space orientation.
