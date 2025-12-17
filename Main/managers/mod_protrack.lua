@@ -36,7 +36,7 @@ local UnitConversion = require("Helpers.UnitConversion")
 --/ Main class definition
 ---@class protrackManager
 local protrackManager = module(..., Mutators.Manager())
-protrackManager.dt = 0
+protrackManager.simulationTime = 0
 ---@type TrackEditMode?
 protrackManager.trackEditMode = nil
 protrackManager.inCamera = false
@@ -227,6 +227,13 @@ function protrackManager.Activate(self)
                 end,
                 nil
             );
+
+            protrackManager.overlayUI:AddListener_TimeChanged(
+                function(newTime)
+                    self.simulationTime = newTime * Datastore.GetTimeLength()
+                end,
+                nil
+            );
         end
     )
 end
@@ -239,7 +246,7 @@ function protrackManager.ZeroData(self)
     --Gizmo.SetVisible(false)
     self.trackModeSelected = 0
     self.trackEditMode = nil
-    self.dt = 0
+    self.simulationTime = 0
     self.tWorldAPIs = nil
     self.inputManagerAPI = nil
     Datastore.tDatapoints = nil
@@ -335,7 +342,7 @@ function protrackManager.NewTrainPosition(self)
     end
 
     -- set dt to 0 since we are moving refpoint
-    self.dt = 0
+    self.simulationTime = 0
     self:NewWalk()
     protrackManager.overlayUI:Show()
 end
@@ -471,12 +478,15 @@ function protrackManager.Advance(self, deltaTime)
         end
 
         local timestep = api.time.GetDeltaTimeUnscaled()
-        self.dt = self.dt + timestep * direction
+        self.simulationTime = self.simulationTime + timestep * direction
 
         -- clamp dt to make it stay in bounds
-        self.dt = mathUtils.Clamp(self.dt, 0, Datastore.GetTimeLength())
+        self.simulationTime = mathUtils.Clamp(self.simulationTime, 0, Datastore.GetTimeLength())
 
-        local pt = Datastore.SampleDatapointAtTime(self.dt)
+        -- Set datastore
+        api.ui2.SetDataStoreElement(protrackManager.context, "time", self.simulationTime / Datastore.GetTimeLength())
+
+        local pt = Datastore.SampleDatapointAtTime(self.simulationTime)
         if pt == nil then
             return
         end
@@ -498,7 +508,7 @@ function protrackManager.Advance(self, deltaTime)
         Gizmo.SetMarkerData(wsTrans:WithPos(wsTrans:GetPos() + wsHeartlineOffset), pt.g)
 
         --  logger:Info("getting datapoints")
-        local indexDatapoint = Datastore.GetFloorIndexForTime(self.dt)
+        local indexDatapoint = Datastore.GetFloorIndexForTime(self.simulationTime)
 
         local numDatapoints = Datastore.GetNumDatapoints()
 

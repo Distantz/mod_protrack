@@ -103,6 +103,10 @@ class CamForceOverlay extends preact.Component {
             this.setState({ playingInDir: value });
         });
 
+        this._helper.addPropertyListener(["ProTrack"], "time", (value) => {
+            this.setState({ time: value });
+        });
+
         this._helper.getAllPropertiesNow();
     }
     componentWillUnmount() {
