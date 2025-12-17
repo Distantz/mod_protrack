@@ -90,16 +90,30 @@ function protrackManager.Activate(self)
         "UI.CoasterWidgetsUI",
         "SetWidgets",
         function(originalMethod, slf, _tItems)
-            if (protrackManager.trackModeSelected == 1) then -- forcelock, remove 1 and 3
+            if (self.trackModeSelected == 1) then -- forcelock, remove 1 and 3
                 _tItems[1] = {}
                 _tItems[3] = {}
-            elseif (protrackManager.trackModeSelected == 2) then -- Advanced widget, remove all
+            elseif (self.trackModeSelected == 2) then -- Advanced widget, remove all
                 _tItems[1] = {}
                 _tItems[2] = {}
                 _tItems[3] = {}
                 _tItems[4] = {}
             end
             originalMethod(slf, _tItems)
+        end
+    )
+
+    -- Setup hook for the build end point
+    HookManager:AddHook(
+        "Editors.Track.TrackEditValues",
+        "StaticBuildEndPoint",
+        function(originalMethod, startT, tData)
+            if (self.trackModeSelected == 1) then
+                return FvdMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
+            elseif (self.trackModeSelected == 2) then
+
+            end
+            return originalMethod(startT, tData)
         end
     )
 
@@ -160,7 +174,7 @@ function protrackManager.Activate(self)
 
             protrackManager.overlayUI:AddListener_TrackModeChanged(
                 function(newTrackMode)
-                    protrackManager.trackModeSelected = newTrackMode
+                    self.trackModeSelected = newTrackMode
                     self:SetTrackBuilderDirty()
                 end,
                 nil
@@ -177,6 +191,7 @@ function protrackManager.ZeroData(self)
     Gizmo.SetTrackGizmosVisible(false)
     self:StopTrackCamera()
     --Gizmo.SetVisible(false)
+    self.trackModeSelected = 0
     self.trackEditMode = nil
     self.dt = 0
     self.tWorldAPIs = nil
@@ -247,6 +262,7 @@ end
 function protrackManager.EndEditMode(self)
     self:ZeroData()
     protrackManager.overlayUI:Hide()
+    protrackManager.overlayUI:ResetTrackMode()
 end
 
 function protrackManager.SetTrackBuilderDirty(self)

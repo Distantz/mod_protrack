@@ -40,7 +40,6 @@ require("forgeutils.logger").GLOBAL_LEVEL = "INFO"
 --/ Main class definition
 ---@class FvdMode
 local FvdMode = {}
-FvdMode.active = true
 FvdMode.posG = 1
 FvdMode.latG = 0
 FvdMode.line = nil
@@ -53,14 +52,6 @@ FvdMode.gravity = Vector3:new(0, -1, 0)
 ---@field velo number Velocity.
 ---@field heartVelo number Heartline velocity.
 ---@field heartDistance number Heartline distance travelled, in M.
-
-function FvdMode:StartFvdMode(trackEditMode)
-    self.active = true
-end
-
-function FvdMode:EndFvdMode()
-    self.active = false
-end
 
 ---Returns a new point
 ---@param position any Coaster-space position.
@@ -152,16 +143,11 @@ function FvdMode.StepPoint(lastPoint, userG, rollDelta, heartlineOffset, timeSte
 end
 
 function FvdMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
-    if not FvdMode.active then
-        return originalMethod(startT, tData)
-    end
-
     if FvdMode.line == nil then
         FvdMode.line = require("protrack.displayline"):new()
     end
 
     if not Datastore.HasData() or Vector3.Length(startT:GetPos() - Datastore.tDatapoints[#Datastore.tDatapoints].transform:GetPos()) > 0.02 then
-        logger:Info("FVD mode enabled but skipped due to a lack of Protrack data.")
         return originalMethod(startT, tData)
     end
 
@@ -183,9 +169,6 @@ function FvdMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
 
     local dt = 0.01
 
-    logger:Info("Protrack data is current, fvd mode can continue.")
-    logger:Info("Doing steps...")
-
     local rollDeltaPerM = (tData.nBank - startT:GetBank()) / tData.nLength
     local iter = 0
 
@@ -203,8 +186,6 @@ function FvdMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
         )
         iter = iter + 1
     end
-
-    logger:Info("Done.")
 
     local distanceOvershoot = point.heartDistance - tData.nLength
 

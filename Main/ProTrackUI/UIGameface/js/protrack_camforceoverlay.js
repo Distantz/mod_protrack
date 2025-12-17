@@ -81,11 +81,17 @@ class CamForceOverlay extends preact.Component {
     componentWillMount() {
         Engine.addListener("Show", this.onShow);
         Engine.addListener("Hide", this.onHide);
+        Engine.addListener("Protrack_ResetTrackMode", this.onResetTrackMode);
 
     }
     componentWillUnmount() {
         Engine.removeListener("Show", this.onShow);
         Engine.removeListener("Hide", this.onHide);
+        Engine.removeListener("Protrack_ResetTrackMode", this.onResetTrackMode);
+    }
+
+    onResetTrackMode = () => {
+        this.onTrackModeChange(0)
     }
 
     onChangeTab = (visibleIndex) => {
