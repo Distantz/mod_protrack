@@ -80,6 +80,8 @@ class CamForceOverlay extends preact.Component {
         heartline: 0.0,
 
         // Playhead data
+        time: 0.0,
+        playingInDir: 0,
         posG: 1.0,
         latG: 0.0,
         time: 0.0
@@ -92,9 +94,15 @@ class CamForceOverlay extends preact.Component {
 
         // Bind to datastore
         this._helper = new DataStoreHelper();
+
         this._helper.addPropertyListener(["ProTrack"], "inCamera", (value) => {
             this.setState({ inCamera: value });
         });
+
+        this._helper.addPropertyListener(["ProTrack"], "playingInDir", (value) => {
+            this.setState({ playingInDir: value });
+        });
+
         this._helper.getAllPropertiesNow();
     }
     componentWillUnmount() {
@@ -121,7 +129,7 @@ class CamForceOverlay extends preact.Component {
             preact.h("div", { key: "tab1", className: "ProTrackUI_panelInner" },
 
                 // Row 1
-                false && preact.h("div", { className: "ProTrackUI_distributeRow" },
+                preact.h("div", { className: "ProTrackUI_distributeRow" },
                     preact.h("div", { className: "ProTrackUI_flexRow" },
                         preact.h(Slider, {
                             // label: '[Loc_ProTrack_Scrub]',
@@ -161,18 +169,21 @@ class CamForceOverlay extends preact.Component {
                     // Middle spacer
                     preact.h("div", { className: "ProTrackUI_flexRow" }),
 
-                    false && preact.h("div", { className: "ProTrackUI_minRow ProTrackUI_innerGap" },
-                        preact.h(Button, {
-                            icon: 'img/icons/minus.svg',
-                            // modifiers: 'negative'
+                    preact.h("div", { className: "ProTrackUI_minRow ProTrackUI_innerGap" },
+                        state.playingInDir != -1 && preact.h(Button, {
+                            icon: 'img/icons/arrow_left.svg',
+                            onSelect: this.onScrubBackwards,
                         }),
-                        preact.h(Button, {
-                            icon: 'img/icons/play.svg',
-                            modifiers: 'positive'
+
+                        state.playingInDir != 0 && preact.h(Button, {
+                            icon: 'img/icons/pause.svg',
+                            onSelect: this.onScrubPause,
+                            modifiers: 'negative'
                         }),
-                        preact.h(Button, {
-                            icon: 'img/icons/plus.svg',
-                            // modifiers: 'positive'
+
+                        state.playingInDir != 1 && preact.h(Button, {
+                            icon: 'img/icons/arrow_right.svg',
+                            onSelect: this.onScrubForwards,
                         }),
                     ),
                 ),
@@ -278,69 +289,6 @@ class CamForceOverlay extends preact.Component {
                 },
             )
         );
-
-        // return preact.h("div", { className: "ProTrackUI_root" },
-        //     preact.h("div", { className: "ProTrackUI_overlay" },
-        //         // Row one, slider
-        //         preact.h("div", { className: "ProTrackUI_row" },
-        //             preact.h(Slider, {
-        //                 // label: '[Loc_ProTrack_Scrub]',
-        //                 rootClassName: 'ProTrackUI_stretch',
-        //                 min: 0,
-        //                 max: 1,
-        //                 step: 0.0001,
-        //                 formatter: Format.float_3DP,
-        //                 value: state.time,
-        //                 onChange: this.onTimeChanged,
-        //                 focusable: true
-        //             }),
-        //         ),
-
-        //         // Row two
-        //         preact.h("div", { className: "ProTrackUI_row" },
-        //             preact.h(CamForceKeyframes, null),
-        //             preact.h(CamForceVert, null),
-        //             preact.h(CamForceLat, null),
-        //             preact.h(CamForceSpeed, null)
-        //         ),
-
-        //         preact.h("div", { className: "ProTrackUI_row" },
-        //             preact.h(Slider, {
-        //                 label: '[Loc_ProTrack_Heartline]',
-        //                 modifiers: 'inner',
-        //                 min: -2.0,
-        //                 max: 2.0,
-        //                 step: 0.05,
-        //                 formatter: Format.distanceUnit_2DP,
-        //                 value: state.heartline,
-        //                 onChange: this.onHeartlineChanged,
-        //                 focusable: true
-        //             }),
-        //             preact.h(Slider, {
-        //                 label: '[Loc_ProTrack_PosG]',
-        //                 modifiers: 'inner',
-        //                 min: -2.0,
-        //                 max: 6.0,
-        //                 step: 0.05,
-        //                 formatter: Format.gForce_2DP,
-        //                 value: state.posG,
-        //                 onChange: this.onPosGChanged,
-        //                 focusable: true
-        //             }),
-        //             preact.h(Slider, {
-        //                 label: '[Loc_ProTrack_LatG]',
-        //                 modifiers: 'inner',
-        //                 min: -2.0,
-        //                 max: 2.0,
-        //                 step: 0.05,
-        //                 formatter: Format.gForce_2DP,
-        //                 value: state.latG,
-        //                 onChange: this.onLatGChanged,
-        //                 focusable: true
-        //             }),
-        //         )
-        //     ),
-        // );
     }
 
     // Engine event listeners
@@ -363,6 +311,18 @@ class CamForceOverlay extends preact.Component {
         Engine.sendEvent("Protrack_ChangeCamModeRequested");
     }
 
+    onScrubBackwards = () => {
+        Engine.sendEvent("Protrack_PlayChanged", -1);
+    }
+
+    onScrubForwards = () => {
+        Engine.sendEvent("Protrack_PlayChanged", 1);
+    }
+
+    onScrubPause = () => {
+        Engine.sendEvent("Protrack_PlayChanged", 0);
+    }
+
     // Value listeners
 
     onChangeTab = (visibleIndex) => {
@@ -373,6 +333,17 @@ class CamForceOverlay extends preact.Component {
         this.setState({ trackMode: newTrackMode });
         Engine.sendEvent("ProtrackTrackModeChanged", newTrackMode);
     }
+
+    onTimeChanged = (value) => {
+
+        // Pause if playing (bad for UX)
+        if (this.state.playingInDir != 0) {
+            this.onScrubPause();
+        }
+
+        this.setState({ time: value });
+        Engine.sendEvent("Protrack_TimeChanged", value);
+    };
 
     onLatGChanged = (value) => {
         this.setState({ latG: value });

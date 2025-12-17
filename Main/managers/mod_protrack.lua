@@ -56,6 +56,15 @@ protrackManager.frictionValues = nil
 
 protrackManager.context = nil
 protrackManager.trackModeSelected = 0
+protrackManager.playingInDir = 0
+
+---Sets a value, while also setting to the datastore
+---@param name any
+---@param value any
+local function SetVariableWithDatastore(name, value)
+    protrackManager[name] = value
+    api.ui2.SetDataStoreElement(protrackManager.context, name, value)
+end
 
 --
 -- @Brief Init function for this manager
@@ -177,6 +186,13 @@ function protrackManager.Activate(self)
                 nil
             )
 
+            protrackManager.overlayUI:AddListener_PlayChanged(
+                function(newDir)
+                    SetVariableWithDatastore("playingInDir", newDir)
+                end,
+                nil
+            )
+
             -- Value listeners
 
             protrackManager.overlayUI:AddListener_HeartlineValueChanged(
@@ -228,6 +244,7 @@ function protrackManager.ZeroData(self)
     self.inputManagerAPI = nil
     Datastore.tDatapoints = nil
     Datastore.trackWalkerOrigin = nil
+    SetVariableWithDatastore("playingInDir", 0)
 end
 
 function protrackManager.StartEditMode(self, trackEditMode)
@@ -431,12 +448,17 @@ function protrackManager.Advance(self, deltaTime)
     end
 
     -- Work out direction
-    local direction = 0.0
+    local direction = 0
     if (self.inputManagerAPI:GetKeyDown("DecreaseBrushIntensity")) then
-        direction = direction - 1.0
+        direction = direction - 1
     end
     if (self.inputManagerAPI:GetKeyDown("IncreaseBrushIntensity")) then
-        direction = direction + 1.0
+        direction = direction + 1
+    end
+
+    -- If keybinds are not held, respect the playingDir
+    if (direction == 0) then
+        direction = self.playingInDir
     end
 
     -- Set gizmo visiblity
