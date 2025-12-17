@@ -283,6 +283,10 @@ function protrackManager.NewTrainPosition(self)
         return
     end
 
+    if mathUtils.ApproxEquals(Datastore.trackWalkerOrigin.speed, 0) then
+        return
+    end
+
     -- set dt to 0 since we are moving refpoint
     self.dt = 0
     self:NewWalk()
