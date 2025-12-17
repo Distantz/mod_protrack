@@ -55,6 +55,7 @@ protrackManager.overlayUI = nil
 protrackManager.frictionValues = nil
 
 protrackManager.context = nil
+protrackManager.trackModeSelected = 0
 
 --
 -- @Brief Init function for this manager
@@ -86,11 +87,19 @@ function protrackManager.Activate(self)
 
     -- Setup hook into the track widgets UI
     HookManager:AddHook(
-        "Editors.Track.TrackEditHandles",
-        "SetCoasterWidgets",
-        function(originalMethod, slf, _bUsingGamepad, _bUsingSecondary)
-            logger:Info("SetCoasterWidgets")
-            originalMethod(slf, _bUsingGamepad, _bUsingSecondary)
+        "UI.CoasterWidgetsUI",
+        "SetWidgets",
+        function(originalMethod, slf, _tItems)
+            if (protrackManager.trackModeSelected == 1) then -- forcelock, remove 1 and 3
+                _tItems[1] = {}
+                _tItems[3] = {}
+            elseif (protrackManager.trackModeSelected == 2) then -- Advanced widget, remove all
+                _tItems[1] = {}
+                _tItems[2] = {}
+                _tItems[3] = {}
+                _tItems[4] = {}
+            end
+            originalMethod(slf, _tItems)
         end
     )
 
@@ -151,9 +160,8 @@ function protrackManager.Activate(self)
 
             protrackManager.overlayUI:AddListener_TrackModeChanged(
                 function(newTrackMode)
-                    logger:Info("New Track mode: " .. global.tostring(newTrackMode))
-                    -- FvdMode.latG = newVal
-                    -- self:SetTrackBuilderDirty()
+                    protrackManager.trackModeSelected = newTrackMode
+                    self:SetTrackBuilderDirty()
                 end,
                 nil
             );
@@ -244,6 +252,7 @@ end
 function protrackManager.SetTrackBuilderDirty(self)
     if (self.trackEditMode ~= nil and self.trackEditMode.tActiveData ~= nil) then
         self.trackEditMode.tActiveData.bEditValuesDirty = true
+        self.trackEditMode.trackHandles:SetTrackWidgetsFromEditValues() -- refresh ui widgets
     end
 end
 
