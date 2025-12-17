@@ -74,6 +74,7 @@ class CamForceOverlay extends preact.Component {
         visibleTabIndex: 0,
 
         // Editor data
+        hasData: false,
         inCamera: false,
         trackMode: 0,
         heartline: 0.0,
@@ -104,6 +105,10 @@ class CamForceOverlay extends preact.Component {
 
         this._helper.addPropertyListener(["ProTrack"], "time", (value) => {
             this.setState({ time: value });
+        });
+
+        this._helper.addPropertyListener(["ProTrack"], "hasData", (value) => {
+            this.setState({ hasData: value });
         });
 
         this._helper.getAllPropertiesNow();
@@ -142,7 +147,8 @@ class CamForceOverlay extends preact.Component {
                             formatter: Format.float_3DP,
                             value: state.time,
                             onChange: this.onTimeChanged,
-                            focusable: true
+                            focusable: true,
+                            disabled: !state.hasData
                         })
                     ),
                 ),
@@ -161,11 +167,13 @@ class CamForceOverlay extends preact.Component {
                             icon: 'img/icons/redo.svg',
                             label: Format.stringLiteral('Resimulate'),
                             onSelect: this.onResimulate,
+                            disabled: !state.hasData
                         }),
                         preact.h(Button, {
                             icon: 'img/icons/camera.svg',
                             label: Format.stringLiteral(state.inCamera ? 'Exit Track Cam' : "Enter Track Cam"),
                             onSelect: this.onChangeCam,
+                            disabled: !state.hasData
                         }),
                     ),
 
@@ -176,23 +184,26 @@ class CamForceOverlay extends preact.Component {
                         state.playingInDir != -1 && preact.h(Button, {
                             icon: 'img/icons/arrow_left.svg',
                             onSelect: this.onScrubBackwards,
+                            disabled: !state.hasData
                         }),
 
                         state.playingInDir != 0 && preact.h(Button, {
                             icon: 'img/icons/pause.svg',
                             onSelect: this.onScrubPause,
-                            modifiers: 'negative'
+                            modifiers: 'negative',
+                            disabled: !state.hasData
                         }),
 
                         state.playingInDir != 1 && preact.h(Button, {
                             icon: 'img/icons/arrow_right.svg',
                             onSelect: this.onScrubForwards,
+                            disabled: !state.hasData
                         }),
                     ),
                 ),
 
                 // Row 3
-                preact.h("div", { className: "ProTrackUI_flexRow ProTrackUI_innerGap" },
+                state.hasData && preact.h("div", { className: "ProTrackUI_flexRow ProTrackUI_innerGap" },
                     preact.h(KeyframeMetric, {
                         icon: "img/icons/clock.svg",
                         formatter: (v) => v

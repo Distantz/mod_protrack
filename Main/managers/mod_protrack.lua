@@ -239,18 +239,15 @@ function protrackManager.Activate(self)
 end
 
 function protrackManager.ZeroData(self)
-    self.line:ClearPoints()
-    Gizmo.SetMarkerGizmosVisible(false)
-    Gizmo.SetTrackGizmosVisible(false)
-    self:StopTrackCamera()
-    --Gizmo.SetVisible(false)
+    self:ClearWalkerOrigin()
     self.trackModeSelected = 0
     self.trackEditMode = nil
     self.simulationTime = 0
     self.tWorldAPIs = nil
     self.inputManagerAPI = nil
     Datastore.tDatapoints = nil
-    Datastore.trackWalkerOrigin = nil
+
+    -- Datastore updates
     SetVariableWithDatastore("playingInDir", 0)
 end
 
@@ -311,6 +308,8 @@ function protrackManager.StartEditMode(self, trackEditMode)
             return true
         end
     )
+
+    protrackManager.overlayUI:Show()
 end
 
 function protrackManager.EndEditMode(self)
@@ -344,7 +343,6 @@ function protrackManager.NewTrainPosition(self)
     -- set dt to 0 since we are moving refpoint
     self.simulationTime = 0
     self:NewWalk()
-    protrackManager.overlayUI:Show()
 end
 
 function protrackManager.ClearWalkerOrigin(self)
@@ -353,6 +351,9 @@ function protrackManager.ClearWalkerOrigin(self)
     Gizmo.SetMarkerGizmosVisible(false)
     Gizmo.SetTrackGizmosVisible(false)
     self:StopTrackCamera()
+
+    -- Datastore
+    api.ui2.SetDataStoreElement(protrackManager.context, "hasData", false)
 end
 
 function protrackManager.NewWalk(self)
@@ -471,7 +472,10 @@ function protrackManager.Advance(self, deltaTime)
     -- Set gizmo visiblity
     --Gizmo.Visible(not self.inCamera)
 
-    if Datastore.HasData() then
+    local hasData = Datastore.HasData()
+    api.ui2.SetDataStoreElement(protrackManager.context, "hasData", hasData)
+
+    if hasData then
         if Datastore.trackWalkerOrigin == nil or Datastore.trackEntityTransform == nil then
             self:ClearWalkerOrigin()
             return
