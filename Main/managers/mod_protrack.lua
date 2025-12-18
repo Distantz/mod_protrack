@@ -128,6 +128,29 @@ function protrackManager.Activate(self)
             logger:Info("TransitionIn")
             local DraggableWidgets = require("Editors.Scenery.Utils.DraggableWidgets")
             self.draggableWidget = DraggableWidgets:new()
+
+            self.draggableWidget:BindButtonHandlers(
+                function()
+                    -- Confirm (unused)
+                end,
+                function()
+                    -- Cancel (unused)
+                end,
+                function()
+                    -- Move button (unused)
+                end,
+                function()
+                    -- Toggle mode
+                    AdvMoveMode.SwitchTransformMode()
+                    self:SetTrackBuilderDirty()
+                end,
+                function()
+                    -- Toggle transform space
+                    AdvMoveMode.SwitchTransformSpace()
+                    self:SetTrackBuilderDirty()
+                end
+            )
+
             return originalMethod(_startTrack, _startSelection, _bDontRequestTrainRespawn)
         end
     )
@@ -304,7 +327,12 @@ function protrackManager.StartEditMode(self, trackEditMode)
     self.inputEventHandler:AddKeyPressedEvent(
         "AdvancedMove",
         function()
-            self:NewWalk()
+            if self.trackModeSelected == ADVMOVE_TRACKMODE then
+                AdvMoveMode.SwitchTransformMode()
+            else
+                self:NewWalk()
+            end
+
             return true
         end
     )

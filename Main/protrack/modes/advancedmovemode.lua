@@ -24,6 +24,9 @@ local AdvModeMode = {}
 AdvModeMode.gizmo = nil
 AdvModeMode.trackContainerTransform = nil
 AdvModeMode.lastTransform = nil
+AdvModeMode.isRotating = false
+AdvModeMode.moveThres = 0.000001
+AdvModeMode.rotThres = 0.00174533
 
 function AdvModeMode.StartEdit(gizmo, trackContainerTransform)
     AdvModeMode.gizmo = gizmo
@@ -36,6 +39,7 @@ function AdvModeMode.EndEdit()
         AdvModeMode.gizmo:Stop()
     end
     AdvModeMode.lastTransform = nil
+    AdvModeMode.isRotating = false
 end
 
 --- Advances the adv mode mode
@@ -56,7 +60,7 @@ function AdvModeMode.Advance(dt, tMouseInput, tGamepadAxisInput)
     local lastPos = AdvModeMode.lastTransform:GetPos()
 
     local quaternionDiff = AngleUtils.AngleBetween(AdvModeMode.lastTransform:GetOr(), thisTransform:GetOr())
-    if Vector3.LengthSq(thisPos - lastPos) < 0.0000001 and quaternionDiff < 0.1 then
+    if Vector3.LengthSq(thisPos - lastPos) < AdvModeMode.moveThres and quaternionDiff < AdvModeMode.rotThres then
         return false
     end
 
@@ -64,15 +68,41 @@ function AdvModeMode.Advance(dt, tMouseInput, tGamepadAxisInput)
     return true
 end
 
-function AdvModeMode.StaticBuildEndPoint_Hook(_, startT, _)
-    if AdvModeMode.lastTransform == nil then
-        AdvModeMode.lastTransform = AdvModeMode.trackContainerTransform:ToWorld(startT:GetTransformQ())
+function AdvModeMode.SwitchTransformMode()
+    AdvModeMode.isRotating = not AdvModeMode.isRotating
+    AdvModeMode.SetTransformMode(AdvModeMode.isRotating)
+end
+
+function AdvModeMode.SwitchTransformSpace()
+    AdvModeMode.gizmo:ToggleWorldSpaceLocalSpace()
+end
+
+function AdvModeMode.SetTransformMode(isRotation)
+    AdvModeMode.gizmo:Stop()
+    if isRotation then
+        AdvModeMode.gizmo:Start3AxisRotation(
+            AdvModeMode.lastTransform,
+            AdvModeMode.lastTransform:GetPos(),
+            true,
+            true,
+            true
+        )
+    else
         AdvModeMode.gizmo:StartTranslation(
             AdvModeMode.lastTransform,
             AdvModeMode.lastTransform:GetPos(),
-            false,
+            true,
             Vector3:new(10, 10, 10)
         )
+    end
+
+    AdvModeMode.isRotating = isRotation
+end
+
+function AdvModeMode.StaticBuildEndPoint_Hook(_, startT, _)
+    if AdvModeMode.lastTransform == nil then
+        AdvModeMode.lastTransform = AdvModeMode.trackContainerTransform:ToWorld(startT:GetTransformQ())
+        AdvModeMode.SetTransformMode(false)
     end
 
     logger:Info("Static build end point")
