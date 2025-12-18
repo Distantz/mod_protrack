@@ -321,11 +321,16 @@ end
 
 --- Prints any Lua table.
 ---@param value any
-function Utils.PrintTable(value)
+---@param maxIndent integer? max indent to print
+function Utils.PrintTable(value, maxIndent)
     -- internal recursive printer
     local function printValue(v, indent, seen)
         indent = indent or 0
         seen = seen or {}
+
+        if maxIndent ~= nil and indent > maxIndent * 2 then
+            return
+        end
 
         local prefix = global.string.rep("  ", indent)
         local vType = global.type(v)

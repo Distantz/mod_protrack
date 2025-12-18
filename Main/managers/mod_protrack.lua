@@ -18,12 +18,12 @@ local mathUtils = require("Common.mathUtils")
 ---@diagnostic disable-next-line: deprecated
 local module = global.module
 
-local Object = require("Common.object")
 local Mutators = require("Environment.ModuleMutators")
 local Vector3 = require("Vector3")
 local HookManager = require("forgeutils.hookmanager")
 local Utils = require("protrack.utils")
-local FvdMode = require("protrack.fvd.fvdmode")
+local FvdMode = require("protrack.modes.fvdmode")
+local AdvMoveMode = require("protrack.modes.advancedmovemode")
 local Gizmo = require("protrack.displaygizmo")
 local Cam = require("protrack.cam")
 local Datastore = require("protrack.datastore")
@@ -31,7 +31,6 @@ local FrictionHelper = require("database.frictionhelper")
 local InputEventHandler = require("Components.Input.InputEventHandler")
 local logger = require("forgeutils.logger").Get("ProTrackManager")
 local ForceOverlay = require("protrack.ui.forceoverlay")
-local table = require("common.tableplus")
 local UnitConversion = require("Helpers.UnitConversion")
 --/ Main class definition
 ---@class protrackManager
@@ -56,8 +55,14 @@ protrackManager.overlayUI = nil
 protrackManager.frictionValues = nil
 
 protrackManager.context = nil
-protrackManager.trackModeSelected = 0
+protrackManager.trackMode = 0
+protrackManager.newTrackModeRequest = 0
 protrackManager.playingInDir = 0
+protrackManager.draggableWidget = nil
+
+local NORMAL_TRACKMODE = 0
+local FVD_TRACKMODE = 1
+local ADVMOVE_TRACKMODE = 2
 
 ---Sets a value, while also setting to the datastore
 ---@param name any
@@ -103,10 +108,10 @@ function protrackManager.Activate(self)
         "UI.CoasterWidgetsUI",
         "SetWidgets",
         function(originalMethod, slf, _tItems)
-            if (self.trackModeSelected == 1) then -- forcelock, remove 1 and 3
+            if (self.trackMode == FVD_TRACKMODE) then -- forcelock, remove 1 and 3
                 _tItems[1] = {}
                 _tItems[3] = {}
-            elseif (self.trackModeSelected == 2) then -- Advanced widget, remove all
+            elseif (self.trackMode == ADVMOVE_TRACKMODE) then -- Advanced widget, remove all
                 _tItems[1] = {}
                 _tItems[2] = {}
                 _tItems[3] = {}
@@ -116,15 +121,49 @@ function protrackManager.Activate(self)
         end
     )
 
+    HookManager:AddHook(
+        "Editors.Track.TrackEditMode",
+        "TransitionIn",
+        function(originalMethod, _startTrack, _startSelection, _bDontRequestTrainRespawn)
+            logger:Info("TransitionIn")
+            local DraggableWidgets = require("Editors.Scenery.Utils.DraggableWidgets")
+            self.draggableWidget = DraggableWidgets:new()
+
+            self.draggableWidget:BindButtonHandlers(
+                function()
+                    -- Confirm (unused)
+                end,
+                function()
+                    -- Cancel (unused)
+                end,
+                function()
+                    -- Move button (unused)
+                end,
+                function()
+                    -- Toggle mode
+                    AdvMoveMode.SwitchTransformMode()
+                    self:SetTrackBuilderDirty()
+                end,
+                function()
+                    -- Toggle transform space
+                    AdvMoveMode.SwitchTransformSpace()
+                    self:SetTrackBuilderDirty()
+                end
+            )
+
+            return originalMethod(_startTrack, _startSelection, _bDontRequestTrainRespawn)
+        end
+    )
+
     -- Setup hook for the build end point
     HookManager:AddHook(
         "Editors.Track.TrackEditValues",
         "StaticBuildEndPoint",
         function(originalMethod, startT, tData)
-            if (self.trackModeSelected == 1) then
+            if (self.trackMode == FVD_TRACKMODE) then
                 return FvdMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
-            elseif (self.trackModeSelected == 2) then
-
+            elseif (self.trackMode == ADVMOVE_TRACKMODE) then
+                return AdvMoveMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
             end
             return originalMethod(startT, tData)
         end
@@ -223,8 +262,10 @@ function protrackManager.Activate(self)
 
             protrackManager.overlayUI:AddListener_TrackModeChanged(
                 function(newTrackMode)
-                    self.trackModeSelected = newTrackMode
-                    self:SetTrackBuilderDirty()
+                    -- Call is delayed like this to exit
+                    -- the UI thread.
+                    self.newTrackModeRequest = newTrackMode
+                    -- self:SwitchTrackMode(newTrackMode)
                 end,
                 nil
             );
@@ -241,7 +282,7 @@ end
 
 function protrackManager.ZeroData(self)
     self:ClearWalkerOrigin()
-    self.trackModeSelected = 0
+    self.newTrackModeRequest = 0
     self.trackEditMode = nil
     self.editingTrackEnd = false
     self.simulationTime = 0
@@ -251,6 +292,7 @@ function protrackManager.ZeroData(self)
 
     -- Datastore updates
     SetVariableWithDatastore("playingInDir", 0)
+    SetVariableWithDatastore("trackMode", 0)
 end
 
 function protrackManager.StartEditMode(self, trackEditMode)
@@ -264,6 +306,7 @@ function protrackManager.StartEditMode(self, trackEditMode)
     self.inputManagerAPI = self.tWorldAPIs.InputManager
 
     local trackEntity = self.trackEditMode.tActiveData:GetTrackEntity()
+    Datastore.trackEntityTransform = api.transform.GetTransform(trackEntity)
 
     ---@diagnostic disable-next-line: assign-type-mismatch
     self.frictionValues = FrictionHelper.GetFrictionValues(api.track.GetTrackHolder(trackEntity))
@@ -284,7 +327,12 @@ function protrackManager.StartEditMode(self, trackEditMode)
     self.inputEventHandler:AddKeyPressedEvent(
         "AdvancedMove",
         function()
-            self:NewWalk()
+            if self.trackMode == ADVMOVE_TRACKMODE then
+                AdvMoveMode.SwitchTransformMode()
+            else
+                self:NewWalk()
+            end
+
             return true
         end
     )
@@ -317,7 +365,32 @@ end
 function protrackManager.EndEditMode(self)
     self:ZeroData()
     protrackManager.overlayUI:Hide()
-    protrackManager.overlayUI:ResetTrackMode()
+    SetVariableWithDatastore("trackMode", 0)
+end
+
+function protrackManager.SwitchTrackMode(self, newTrackMode)
+    self:EndTrackEdit()
+    SetVariableWithDatastore("trackMode", newTrackMode)
+    self:StartTrackEdit()
+    self:SetTrackBuilderDirty()
+end
+
+function protrackManager.StartTrackEdit(self)
+    logger:Info("Start edit for mode: " .. global.tostring(self.trackMode))
+
+    if self.trackMode == ADVMOVE_TRACKMODE then
+        AdvMoveMode.StartEdit(self.draggableWidget, Datastore.trackEntityTransform)
+    end
+end
+
+function protrackManager.EndTrackEdit(self)
+    logger:Info("End edit for mode: " .. global.tostring(self.trackMode))
+
+    if self.trackMode == FVD_TRACKMODE then
+        FvdMode.EndEdit()
+    elseif self.trackMode == ADVMOVE_TRACKMODE then
+        AdvMoveMode.EndEdit()
+    end
 end
 
 function protrackManager.SetTrackBuilderDirty(self)
@@ -330,7 +403,6 @@ end
 function protrackManager.NewTrainPosition(self)
     logger:Info("NewTrainPosition()")
     local trackEntity = self.trackEditMode.tActiveData:GetTrackEntity()
-    Datastore.trackEntityTransform = api.transform.GetTransform(trackEntity)
 
     -- Early exit
     Datastore.trackWalkerOrigin = Utils.GetFirstCarData(trackEntity)
@@ -452,11 +524,30 @@ function protrackManager.Advance(self, deltaTime)
 
     self.inputEventHandler:CheckEvents()
 
+    -- Check if UI thread has demanded that we switch track modes
+    if (self.newTrackModeRequest ~= self.trackMode) then
+        self:SwitchTrackMode(self.newTrackModeRequest)
+        self.newTrackModeRequest = self.trackMode
+    end
+
     -- Check selection
     local newEndEdit = self.trackEditMode.tActiveData:IsAddingAfterSelection()
     if (newEndEdit ~= self.editingTrackEnd) then
         self.editingTrackEnd = newEndEdit
-        logger:Info(global.tostring(newEndEdit))
+        if self.editingTrackEnd then
+            self:StartTrackEdit()
+        else
+            self:EndTrackEdit()
+        end
+    end
+
+    -- If we are in advanced move mode, tick it.
+    if (self.trackMode == ADVMOVE_TRACKMODE) then
+        local tMouseInput = (self.trackEditMode.inputManager):GetMouseInput()
+        local tGamepadAxisInput = (self.trackEditMode.inputManager):GetGamepadAxisData()
+        if AdvMoveMode.Advance(deltaTime, tMouseInput, tGamepadAxisInput) then
+            self:SetTrackBuilderDirty()
+        end
     end
 
     -- If a change has happened, we want to know!
