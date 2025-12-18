@@ -75,6 +75,11 @@ function ForceOverlay:AddListener_TrackModeChanged(_callback, _self)
 	self:AddEventListener("ProtrackTrackModeChanged", 1, _callback, _self)
 end
 
+function ForceOverlay:AddListener_HeartlineCamChanged(_callback, _self)
+	---@diagnostic disable-next-line: undefined-field
+	self:AddEventListener("ProtrackHeartlineCamChanged", 1, _callback, _self)
+end
+
 function ForceOverlay:AddListener_TimeChanged(_callback, _self)
 	---@diagnostic disable-next-line: undefined-field
 	self:AddEventListener("Protrack_TimeChanged", 1, _callback, _self)

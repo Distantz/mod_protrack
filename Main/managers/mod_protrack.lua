@@ -192,6 +192,7 @@ function protrackManager.Activate(self)
 
     logger:Info("Inserted hooks")
     logger:Info("Initialising UI")
+    SetVariableWithDatastore(false, "cameraIsHeartlineMode")
 
     Datastore.heartlineOffset = Vector3.Zero
     ---@type ForceOverlay
@@ -266,6 +267,13 @@ function protrackManager.Activate(self)
                     -- the UI thread.
                     self.newTrackModeRequest = newTrackMode
                     -- self:SwitchTrackMode(newTrackMode)
+                end,
+                nil
+            );
+
+            protrackManager.overlayUI:AddListener_HeartlineCamChanged(
+                function(heartlineCamMode)
+                    SetVariableWithDatastore("cameraIsHeartlineMode", heartlineCamMode)
                 end,
                 nil
             );
@@ -354,7 +362,7 @@ function protrackManager.StartEditMode(self, trackEditMode)
         "ToggleAlignToSurface",
         function()
             logger:Info("Toggle camera mode!")
-            self.cameraIsHeartlineMode = not self.cameraIsHeartlineMode
+            SetVariableWithDatastore("cameraIsHeartlineMode", not self.cameraIsHeartlineMode)
             return true
         end
     )

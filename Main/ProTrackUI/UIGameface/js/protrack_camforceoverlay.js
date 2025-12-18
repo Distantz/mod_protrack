@@ -13,6 +13,7 @@ import { loadCSS } from "/js/common/util/CSSUtil.js";
 import { Slider } from '/js/project/components/Slider.js';
 import { Button } from '/js/project/components/Button.js';
 import { ListStepperRow } from '/js/project/components/ListStepperRow.js';
+import { CheckBox } from '/js/project/components/CheckBox.js';
 
 import { Panel, PanelType } from '/js/project/components/panel/Panel.js';
 import { Tab } from '/js/common/components/Tab.js';
@@ -76,6 +77,7 @@ class CamForceOverlay extends preact.Component {
         // Editor data
         hasData: false,
         inCamera: false,
+        cameraIsHeartlineMode: false,
         trackMode: 0,
         heartline: 0.0,
 
@@ -96,6 +98,10 @@ class CamForceOverlay extends preact.Component {
 
         this._helper.addPropertyListener(["ProTrack"], "inCamera", (value) => {
             this.setState({ inCamera: value });
+        });
+
+        this._helper.addPropertyListener(["ProTrack"], "cameraIsHeartlineMode", (value) => {
+            this.setState({ cameraIsHeartlineMode: value });
         });
 
         this._helper.addPropertyListener(["ProTrack"], "playingInDir", (value) => {
@@ -282,6 +288,15 @@ class CamForceOverlay extends preact.Component {
                         focusable: true
                     }),
                 ),
+
+                preact.h("div", { className: "ProTrackUI_flexRow" },
+                    preact.h(CheckBox, {
+                        label: Format.stringLiteral('Use Heartline Camera'),
+                        toggled: state.cameraIsHeartlineMode,
+                        onToggle: this.onHeartlineCameraChanged,
+                        modifiers: "stretch",
+                    })
+                ),
             )
         ]
 
@@ -343,6 +358,11 @@ class CamForceOverlay extends preact.Component {
     onTrackModeChange = (newTrackMode) => {
         this.setState({ trackMode: newTrackMode });
         Engine.sendEvent("ProtrackTrackModeChanged", newTrackMode);
+    }
+
+    onHeartlineCameraChanged = (heartlineCamRequested) => {
+        this.setState({ cameraIsHeartlineMode: heartlineCamRequested });
+        Engine.sendEvent("ProtrackHeartlineCamChanged", heartlineCamRequested);
     }
 
     onTimeChanged = (value) => {
