@@ -90,7 +90,6 @@ class CamForceOverlay extends preact.Component {
     componentWillMount() {
         Engine.addListener("Show", this.onShow);
         Engine.addListener("Hide", this.onHide);
-        Engine.addListener("Protrack_ResetTrackMode", this.onResetTrackMode);
 
         // Bind to datastore
         this._helper = new DataStoreHelper();
@@ -111,12 +110,16 @@ class CamForceOverlay extends preact.Component {
             this.setState({ hasData: value });
         });
 
+        this._helper.addPropertyListener(["ProTrack"], "trackMode", (value) => {
+            this.setState({ trackMode: value });
+        });
+
+
         this._helper.getAllPropertiesNow();
     }
     componentWillUnmount() {
         Engine.removeListener("Show", this.onShow);
         Engine.removeListener("Hide", this.onHide);
-        Engine.removeListener("Protrack_ResetTrackMode", this.onResetTrackMode);
         this._helper.clear();
         this._helper = undefined;
     }
@@ -303,12 +306,6 @@ class CamForceOverlay extends preact.Component {
                 },
             )
         );
-    }
-
-    // Engine event listeners
-
-    onResetTrackMode = () => {
-        this.onTrackModeChange(0)
     }
 
     // Button responders
