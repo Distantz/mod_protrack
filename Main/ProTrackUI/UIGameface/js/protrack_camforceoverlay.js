@@ -254,7 +254,7 @@ class CamForceOverlay extends preact.Component {
                 ),
                 // Warning message
                 state.trackMode == 1 && !state.hasData && preact.h("div", { className: "ProTrackUI_flexRow" },
-                    preact.h(WarningMessage, { label: Format.stringLiteral('ForceViz data needed at track end for ForceLock.'), type: Messagetype.Neutral, show: true })
+                    preact.h(WarningMessage, { label: Format.stringLiteral('TrackViz data needed at track end for ForceLock.'), type: Messagetype.Neutral, show: true })
                 ),
                 state.trackMode == 1 && state.hasData && preact.h("div", { className: "ProTrackUI_flexRow" },
                     preact.h(Slider, {
@@ -326,7 +326,7 @@ class CamForceOverlay extends preact.Component {
                     context: props.context,
                     onClose: props.onClose,
                     tabs: [
-                        preact.h(Tab, { icon: '/img/icons/gforce.svg', label: Format.stringLiteral("Track Viz") }),
+                        preact.h(Tab, { icon: '/img/icons/gforce.svg', label: Format.stringLiteral("TrackViz") }),
                         preact.h(Tab, { icon: '/img/icons/create.svg', label: Format.stringLiteral("Track Tools") }),
                         // preact.h(Tab, { icon: '/img/icons/placeholder.svg' }),
                         preact.h(Tab, { icon: '/img/icons/settings.svg', label: Format.stringLiteral("Settings") })
