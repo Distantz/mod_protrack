@@ -108,7 +108,12 @@ function protrackManager.Activate(self)
         "UI.CoasterWidgetsUI",
         "SetWidgets",
         function(originalMethod, slf, _tItems)
-            if (self.trackMode == FVD_TRACKMODE) then -- forcelock, remove 1 and 3
+            if self.trackEditMode == nil or not self.editingTrackEnd then
+                originalMethod(slf, _tItems)
+                return
+            end
+
+            if (self.trackMode == FVD_TRACKMODE) and Datastore.HasData() then -- forcelock, remove 1 and 3
                 _tItems[1] = {}
                 _tItems[3] = {}
             elseif (self.trackMode == ADVMOVE_TRACKMODE) then -- Advanced widget, remove all
@@ -425,6 +430,7 @@ function protrackManager.NewTrainPosition(self)
     -- set dt to 0 since we are moving refpoint
     self.simulationTime = 0
     self:NewWalk()
+    self:SetTrackBuilderDirty()
 end
 
 function protrackManager.ClearWalkerOrigin(self)
@@ -439,12 +445,14 @@ function protrackManager.ClearWalkerOrigin(self)
 end
 
 function protrackManager.NewWalk(self)
-    logger:Info("NewWalk()")
+    Datastore.tDatapoints = nil
+
     if not Utils.IsTrackOriginValid(Datastore.trackWalkerOrigin) then
         logger:Info("Invalid!")
         self:ClearWalkerOrigin()
         return
     end
+
     Datastore.tDatapoints = Utils.WalkTrack(
         Datastore.trackWalkerOrigin,
         self.frictionValues,

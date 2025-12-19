@@ -18,6 +18,7 @@ import { CheckBox } from '/js/project/components/CheckBox.js';
 import { Panel, PanelType } from '/js/project/components/panel/Panel.js';
 import { Tab } from '/js/common/components/Tab.js';
 import { MetricDisplay, DirectionalGForceMetric, KeyframeMetric } from '/js/protrack_metriccomponents.js';
+import { Messagetype, WarningMessage } from '/js/project/components/WarningMessage.js';
 
 import { DataStoreHelper } from '/js/common/util/DataStoreHelper.js';
 import * as AccentColorUtil from '/js/project/utils/AccentColorUtil.js';
@@ -244,7 +245,11 @@ class CamForceOverlay extends preact.Component {
                 preact.h("div", { className: "ProTrackUI_flexRow" },
                     preact.h(ListStepperRow, { showInputIcon: true, modal: true, items: items, listIndex: state.trackMode, onChange: this.onTrackModeChange, label: "[Loc_ProTrack_TM_Label]" }),
                 ),
-                state.trackMode == 1 && preact.h("div", { className: "ProTrackUI_flexRow" },
+                // Warning message
+                state.trackMode == 1 && !state.hasData && preact.h("div", { className: "ProTrackUI_flexRow" },
+                    preact.h(WarningMessage, { label: Format.stringLiteral('ForceViz data needed at track end for ForceLock.'), type: Messagetype.Neutral, show: true })
+                ),
+                state.trackMode == 1 && state.hasData && preact.h("div", { className: "ProTrackUI_flexRow" },
                     preact.h(Slider, {
                         label: '[Loc_ProTrack_PosG]',
                         // rootClassName: "ProTrackUI_flex",
@@ -255,7 +260,8 @@ class CamForceOverlay extends preact.Component {
                         formatter: Format.gForce_2DP,
                         value: state.posG,
                         onChange: this.onPosGChanged,
-                        focusable: true
+                        focusable: true,
+                        disabled: !state.hasData,
                     }),
                     preact.h(Slider, {
                         label: '[Loc_ProTrack_LatG]',
@@ -267,7 +273,8 @@ class CamForceOverlay extends preact.Component {
                         formatter: Format.gForce_2DP,
                         value: state.latG,
                         onChange: this.onLatGChanged,
-                        focusable: true
+                        focusable: true,
+                        disabled: !state.hasData,
                     }),
                 ),
             ),
