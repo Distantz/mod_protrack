@@ -332,7 +332,7 @@ function protrackManager.StartEditMode(self, trackEditMode)
     self.inputEventHandler:AddKeyPressedEvent(
         "AdvancedMove",
         function()
-            if self.trackMode == ADVMOVE_TRACKMODE then
+            if self.trackMode == ADVMOVE_TRACKMODE and self.editingTrackEnd then
                 AdvMoveMode.SwitchTransformMode()
             else
                 self:NewWalk()

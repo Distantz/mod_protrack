@@ -79,10 +79,17 @@ function AdvModeMode.SwitchTransformMode()
 end
 
 function AdvModeMode.SwitchTransformSpace()
+    if AdvModeMode.gizmo == nil then
+        return
+    end
     AdvModeMode.gizmo:ToggleWorldSpaceLocalSpace()
 end
 
 function AdvModeMode.SetTransformMode(isRotation)
+    if AdvModeMode.gizmo == nil then
+        return
+    end
+
     AdvModeMode.gizmo:Stop()
     if isRotation then
         AdvModeMode.gizmo:Start3AxisRotation(
