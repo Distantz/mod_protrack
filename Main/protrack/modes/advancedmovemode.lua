@@ -53,10 +53,11 @@ end
 ---@param tGamepadAxisInput any
 ---@return boolean shouldRefreshTrack Whether the track should be refreshed.
 function AdvModeMode.Advance(dt, tMouseInput, tGamepadAxisInput)
-    AdvModeMode.gizmo:Step(tMouseInput, tGamepadAxisInput)
     if AdvModeMode.lastTransform == nil or AdvModeMode.gizmo == nil then
         return false
     end
+
+    AdvModeMode.gizmo:Step(tMouseInput, tGamepadAxisInput)
 
     local thisTransform = AdvModeMode.gizmo:GetTransform()
     local thisPos = thisTransform:GetPos()
@@ -103,7 +104,11 @@ function AdvModeMode.SetTransformMode(isRotation)
     AdvModeMode.isRotating = isRotation
 end
 
-function AdvModeMode.StaticBuildEndPoint_Hook(_, startT, _)
+function AdvModeMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
+    if AdvModeMode.gizmo == nil then
+        return originalMethod(startT, tData)
+    end
+
     if AdvModeMode.lastTransform == nil then
         AdvModeMode.lastTransform = AdvModeMode.trackContainerTransform:ToWorld(startT:GetTransformQ())
         AdvModeMode.SetTransformMode(false)

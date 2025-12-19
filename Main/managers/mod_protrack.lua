@@ -59,6 +59,7 @@ protrackManager.trackMode = 0
 protrackManager.newTrackModeRequest = 0
 protrackManager.playingInDir = 0
 protrackManager.draggableWidget = nil
+protrackManager.staticSelf = nil
 
 local NORMAL_TRACKMODE = 0
 local FVD_TRACKMODE = 1
@@ -72,6 +73,75 @@ local function SetVariableWithDatastore(name, value)
     api.ui2.SetDataStoreElement(protrackManager.context, name, value)
 end
 
+function protrackManager.SetupHooks()
+    logger:Info("Setup FU hooks")
+    HookManager:AddHook(
+        "UI.CoasterWidgetsUI",
+        "SetWidgets",
+        function(originalMethod, slf, _tItems)
+            if protrackManager.staticSelf.trackEditMode == nil or not protrackManager.staticSelf.editingTrackEnd then
+                originalMethod(slf, _tItems)
+                return
+            end
+
+            if (protrackManager.staticSelf.trackMode == FVD_TRACKMODE) and Datastore.HasData() then -- forcelock, remove 1 and 3
+                _tItems[1] = {}
+                _tItems[3] = {}
+            elseif (protrackManager.staticSelf.trackMode == ADVMOVE_TRACKMODE) then -- Advanced widget, remove all
+                _tItems[1] = {}
+                _tItems[2] = {}
+                _tItems[3] = {}
+                _tItems[4] = {}
+            end
+            originalMethod(slf, _tItems)
+        end
+    )
+
+    -- Setup hook for the build end point
+    HookManager:AddHook(
+        "Editors.Track.TrackEditValues",
+        "StaticBuildEndPoint",
+        function(originalMethod, startT, tData)
+            if (protrackManager.staticSelf.trackMode == FVD_TRACKMODE) then
+                return FvdMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
+            elseif (protrackManager.staticSelf.trackMode == ADVMOVE_TRACKMODE) then
+                return AdvMoveMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
+            end
+            return originalMethod(startT, tData)
+        end
+    )
+
+    HookManager:AddHook(
+        "Editors.Track.TrackEditMode",
+        "TransitionIn",
+        function(originalMethod, slf, _startTrack, _startSelection, _bDontRequestTrainRespawn)
+            originalMethod(slf, _startTrack, _startSelection, _bDontRequestTrainRespawn)
+            protrackManager.staticSelf:StartEditMode(slf)
+        end
+    )
+
+    HookManager:AddHook(
+        "Editors.Track.TrackEditMode",
+        "TransitionOut",
+        function(originalMethod, slf)
+            originalMethod(slf)
+            protrackManager.staticSelf:EndEditMode()
+        end
+    )
+
+    HookManager:AddHook(
+        "Editors.Track.TrackEditSelection",
+        "CommitPreview",
+        function(originalMethod, slf)
+            local ret = originalMethod(slf)
+            protrackManager.staticSelf:NewWalk()
+            return ret
+        end
+    )
+
+    logger:Info("Done")
+end
+
 --
 -- @Brief Init function for this manager
 -- @param _tProperties  a table with initialization data for all the managers.
@@ -83,6 +153,7 @@ end
 --
 function protrackManager.Init(self, _tProperties, _tEnvironment)
     logger:Info("Init")
+    protrackManager.staticSelf = self
 end
 
 --
@@ -97,105 +168,17 @@ function protrackManager.Activate(self)
     protrackManager.context = api.ui2.GetDataStoreContext("ProTrack")
 
     -- Our entry point simply calls inject on the submode override file:
-    logger:Info("Injecting...")
+    logger:Info("Completing spawns...")
     Cam.GetPreviewCameraEntity()
+    logger:Info("Finished Camera")
+
     self.gizmoInitCoroutine = Gizmo.InitGizmo()
-    self.line = require("protrack.displayline"):new()
+    local line = require("protrack.displayline")
+    self.line = line:new()
+    FvdMode.line = line:new()
+    logger:Info("Finished Lines")
+
     logger:Info("Done gizmo setup")
-
-    -- Setup hook into the track widgets UI
-    HookManager:AddHook(
-        "UI.CoasterWidgetsUI",
-        "SetWidgets",
-        function(originalMethod, slf, _tItems)
-            if self.trackEditMode == nil or not self.editingTrackEnd then
-                originalMethod(slf, _tItems)
-                return
-            end
-
-            if (self.trackMode == FVD_TRACKMODE) and Datastore.HasData() then -- forcelock, remove 1 and 3
-                _tItems[1] = {}
-                _tItems[3] = {}
-            elseif (self.trackMode == ADVMOVE_TRACKMODE) then -- Advanced widget, remove all
-                _tItems[1] = {}
-                _tItems[2] = {}
-                _tItems[3] = {}
-                _tItems[4] = {}
-            end
-            originalMethod(slf, _tItems)
-        end
-    )
-
-    HookManager:AddHook(
-        "Editors.Track.TrackEditMode",
-        "TransitionIn",
-        function(originalMethod, _startTrack, _startSelection, _bDontRequestTrainRespawn)
-            logger:Info("TransitionIn")
-            local DraggableWidgets = require("Editors.Scenery.Utils.DraggableWidgets")
-            self.draggableWidget = DraggableWidgets:new()
-
-            self.draggableWidget:BindButtonHandlers(
-                function()
-                    -- Confirm (unused)
-                end,
-                function()
-                    -- Cancel (unused)
-                end,
-                function()
-                    -- Move button (unused)
-                end,
-                function()
-                    -- Toggle mode
-                    AdvMoveMode.SwitchTransformMode()
-                    self:SetTrackBuilderDirty()
-                end,
-                function()
-                    -- Toggle transform space
-                    AdvMoveMode.SwitchTransformSpace()
-                    self:SetTrackBuilderDirty()
-                end
-            )
-
-            return originalMethod(_startTrack, _startSelection, _bDontRequestTrainRespawn)
-        end
-    )
-
-    -- Setup hook for the build end point
-    HookManager:AddHook(
-        "Editors.Track.TrackEditValues",
-        "StaticBuildEndPoint",
-        function(originalMethod, startT, tData)
-            if (self.trackMode == FVD_TRACKMODE) then
-                return FvdMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
-            elseif (self.trackMode == ADVMOVE_TRACKMODE) then
-                return AdvMoveMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
-            end
-            return originalMethod(startT, tData)
-        end
-    )
-
-    local trackEditModeModule = require("Editors.Track.TrackEditMode")
-    local baseTransitionIn = trackEditModeModule.TransitionIn
-    trackEditModeModule.TransitionIn = function(slf, _startTrack, _startSelection, _bDontRequestTrainRespawn)
-        baseTransitionIn(slf, _startTrack, _startSelection, _bDontRequestTrainRespawn)
-        self:StartEditMode(slf)
-    end
-
-    local baseTransitionOut = trackEditModeModule.TransitionOut
-    trackEditModeModule.TransitionOut = function(slf)
-        baseTransitionOut(slf)
-        self:EndEditMode()
-    end
-
-    local trackEditSelection = require("Editors.Track.TrackEditSelection")
-    local baseCommitPreview = trackEditSelection.CommitPreview
-    trackEditSelection.CommitPreview = function(slf)
-        local ret = baseCommitPreview(slf)
-        self:NewWalk()
-        return ret
-    end
-
-    logger:Info("Inserted hooks")
     logger:Info("Initialising UI")
     SetVariableWithDatastore(false, "cameraIsHeartlineMode")
 
@@ -372,13 +355,40 @@ function protrackManager.StartEditMode(self, trackEditMode)
         end
     )
 
+    logger:Info("Spawning draggable widget")
+    local DraggableWidgets = require("Editors.Scenery.Utils.DraggableWidgets")
+    self.draggableWidget = DraggableWidgets:new()
+    logger:Info("Finished Draggable Widget")
+
+    self.draggableWidget:BindButtonHandlers(
+        function()
+            -- Confirm (unused)
+        end,
+        function()
+            -- Cancel (unused)
+        end,
+        function()
+            -- Move button (unused)
+        end,
+        function()
+            -- Toggle mode
+            AdvMoveMode.SwitchTransformMode()
+            protrackManager.staticSelf:SetTrackBuilderDirty()
+        end,
+        function()
+            -- Toggle transform space
+            AdvMoveMode.SwitchTransformSpace()
+            protrackManager.staticSelf:SetTrackBuilderDirty()
+        end
+    )
+
     protrackManager.overlayUI:Show()
 end
 
 function protrackManager.EndEditMode(self)
     self:ZeroData()
     protrackManager.overlayUI:Hide()
-    SetVariableWithDatastore("trackMode", 0)
+    self.draggableWidget = nil
 end
 
 function protrackManager.SwitchTrackMode(self, newTrackMode)

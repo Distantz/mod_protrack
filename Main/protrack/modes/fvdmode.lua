@@ -149,10 +149,6 @@ function FvdMode.StepPoint(lastPoint, userG, rollDelta, heartlineOffset, timeSte
 end
 
 function FvdMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
-    if FvdMode.line == nil then
-        FvdMode.line = require("protrack.displayline"):new()
-    end
-
     if not Datastore.HasData() or Vector3.Length(startT:GetPos() - Datastore.tDatapoints[#Datastore.tDatapoints].transform:GetPos()) > 0.02 then
         return originalMethod(startT, tData)
     end
