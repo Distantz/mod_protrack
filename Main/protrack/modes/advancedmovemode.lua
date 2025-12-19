@@ -25,13 +25,16 @@ AdvModeMode.gizmo = nil
 AdvModeMode.trackContainerTransform = nil
 AdvModeMode.lastTransform = nil
 AdvModeMode.isRotating = false
+AdvModeMode.cacheRotateSnapValue = false
 AdvModeMode.moveThres = 0.000001
 AdvModeMode.rotThres = 0.00174533
 
 function AdvModeMode.StartEdit(gizmo, trackContainerTransform)
     AdvModeMode.gizmo = gizmo
-    logger:Info(global.tostring(trackContainerTransform))
     AdvModeMode.trackContainerTransform = trackContainerTransform
+
+    AdvModeMode.cacheRotateSnapValue = api.world.GetWorldAPIs().gamevolatileconfig:GetRotationSnapEnabled()
+    api.world.GetWorldAPIs().gamevolatileconfig:SetRotationSnapEnabled(false)
 end
 
 function AdvModeMode.EndEdit()
@@ -40,6 +43,7 @@ function AdvModeMode.EndEdit()
     end
     AdvModeMode.lastTransform = nil
     AdvModeMode.isRotating = false
+    api.world.GetWorldAPIs().gamevolatileconfig:SetRotationSnapEnabled(AdvModeMode.cacheRotateSnapValue)
 end
 
 --- Advances the adv mode mode
