@@ -97,40 +97,6 @@ function protrackManager.SetupHooks()
         end
     )
 
-    HookManager:AddHook(
-        "Editors.Track.TrackEditMode",
-        "TransitionIn",
-        function(originalMethod, _startTrack, _startSelection, _bDontRequestTrainRespawn)
-            logger:Info("TransitionIn")
-            local DraggableWidgets = require("Editors.Scenery.Utils.DraggableWidgets")
-            protrackManager.staticSelf.draggableWidget = DraggableWidgets:new()
-
-            protrackManager.staticSelf.draggableWidget:BindButtonHandlers(
-                function()
-                    -- Confirm (unused)
-                end,
-                function()
-                    -- Cancel (unused)
-                end,
-                function()
-                    -- Move button (unused)
-                end,
-                function()
-                    -- Toggle mode
-                    AdvMoveMode.SwitchTransformMode()
-                    protrackManager.staticSelf:SetTrackBuilderDirty()
-                end,
-                function()
-                    -- Toggle transform space
-                    AdvMoveMode.SwitchTransformSpace()
-                    protrackManager.staticSelf:SetTrackBuilderDirty()
-                end
-            )
-
-            return originalMethod(_startTrack, _startSelection, _bDontRequestTrainRespawn)
-        end
-    )
-
     -- Setup hook for the build end point
     HookManager:AddHook(
         "Editors.Track.TrackEditValues",
@@ -202,10 +168,16 @@ function protrackManager.Activate(self)
     protrackManager.context = api.ui2.GetDataStoreContext("ProTrack")
 
     -- Our entry point simply calls inject on the submode override file:
-    logger:Info("Injecting...")
+    logger:Info("Completing spawns...")
     Cam.GetPreviewCameraEntity()
+    logger:Info("Finished Camera")
+
     self.gizmoInitCoroutine = Gizmo.InitGizmo()
-    self.line = require("protrack.displayline"):new()
+    local line = require("protrack.displayline")
+    self.line = line:new()
+    FvdMode.line = line:new()
+    logger:Info("Finished Lines")
+
     logger:Info("Done gizmo setup")
     logger:Info("Initialising UI")
     SetVariableWithDatastore(false, "cameraIsHeartlineMode")
@@ -383,13 +355,40 @@ function protrackManager.StartEditMode(self, trackEditMode)
         end
     )
 
+    logger:Info("Spawning draggable widget")
+    local DraggableWidgets = require("Editors.Scenery.Utils.DraggableWidgets")
+    self.draggableWidget = DraggableWidgets:new()
+    logger:Info("Finished Draggable Widget")
+
+    self.draggableWidget:BindButtonHandlers(
+        function()
+            -- Confirm (unused)
+        end,
+        function()
+            -- Cancel (unused)
+        end,
+        function()
+            -- Move button (unused)
+        end,
+        function()
+            -- Toggle mode
+            AdvMoveMode.SwitchTransformMode()
+            protrackManager.staticSelf:SetTrackBuilderDirty()
+        end,
+        function()
+            -- Toggle transform space
+            AdvMoveMode.SwitchTransformSpace()
+            protrackManager.staticSelf:SetTrackBuilderDirty()
+        end
+    )
+
     protrackManager.overlayUI:Show()
 end
 
 function protrackManager.EndEditMode(self)
     self:ZeroData()
     protrackManager.overlayUI:Hide()
-    SetVariableWithDatastore("trackMode", 0)
+    self.draggableWidget = nil
 end
 
 function protrackManager.SwitchTrackMode(self, newTrackMode)
