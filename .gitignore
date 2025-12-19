@@ -3,5 +3,4 @@
 *.zip
 *.ppuipkg
 .editorconfig
-.vscode
-/Build
+*.pyc
