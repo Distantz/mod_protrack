@@ -40,8 +40,8 @@ require("forgeutils.logger").GLOBAL_LEVEL = "INFO"
 --/ Main class definition
 ---@class FvdMode
 local FvdMode = {}
-FvdMode.posG = 1
-FvdMode.latG = 0
+FvdMode.forceLockVertG = 0
+FvdMode.forceLockLatG = 0
 FvdMode.line = nil
 FvdMode.g = 9.81
 FvdMode.gravity = Vector3:new(0, -1, 0)
@@ -153,7 +153,7 @@ function FvdMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
         return originalMethod(startT, tData)
     end
 
-    local userAccel = Vector3:new(FvdMode.latG, FvdMode.posG, 0) -- local-space target accel
+    local userAccel = Vector3:new(FvdMode.forceLockLatG, FvdMode.forceLockVertG, 0) -- local-space target accel
 
     logger:Info("Using acceleration: " .. global.tostring(userAccel))
 

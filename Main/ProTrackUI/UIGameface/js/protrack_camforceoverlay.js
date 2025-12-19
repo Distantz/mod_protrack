@@ -81,12 +81,12 @@ class CamForceOverlay extends preact.Component {
         cameraIsHeartlineMode: false,
         trackMode: 0,
         heartline: 0.0,
+        forceLockVertG: 0.0,
+        forcelockLatG: 0.0,
 
         // Playhead data
         time: 0.0,
         playingInDir: 0,
-        posG: 1.0,
-        latG: 0.0,
         time: 0.0
     };
     _helper = undefined;
@@ -121,6 +121,13 @@ class CamForceOverlay extends preact.Component {
             this.setState({ trackMode: value });
         });
 
+        this._helper.addPropertyListener(["ProTrack"], "forceLockVertG", (value) => {
+            this.setState({ forceLockVertG: value });
+        });
+
+        this._helper.addPropertyListener(["ProTrack"], "forceLockLatG", (value) => {
+            this.setState({ forceLockLatG: value });
+        });
 
         this._helper.getAllPropertiesNow();
     }
@@ -247,19 +254,19 @@ class CamForceOverlay extends preact.Component {
                 ),
                 // Warning message
                 state.trackMode == 1 && !state.hasData && preact.h("div", { className: "ProTrackUI_flexRow" },
-                    preact.h(WarningMessage, { label: Format.stringLiteral('ForceViz data needed at track end for ForceLock.'), type: Messagetype.Neutral, show: true })
+                    preact.h(WarningMessage, { label: Format.stringLiteral('TrackViz data needed at track end for ForceLock.'), type: Messagetype.Neutral, show: true })
                 ),
                 state.trackMode == 1 && state.hasData && preact.h("div", { className: "ProTrackUI_flexRow" },
                     preact.h(Slider, {
-                        label: '[Loc_ProTrack_PosG]',
+                        label: '[Loc_ProTrack_VertG]',
                         // rootClassName: "ProTrackUI_flex",
                         // modifiers: 'inner',
                         min: -6.0,
                         max: 6.0,
                         step: 0.05,
                         formatter: Format.gForce_2DP,
-                        value: state.posG,
-                        onChange: this.onPosGChanged,
+                        value: state.forceLockVertG,
+                        onChange: this.onVertGChanged,
                         focusable: true,
                         disabled: !state.hasData,
                     }),
@@ -271,7 +278,7 @@ class CamForceOverlay extends preact.Component {
                         max: 2.0,
                         step: 0.05,
                         formatter: Format.gForce_2DP,
-                        value: state.latG,
+                        value: state.forceLockLatG,
                         onChange: this.onLatGChanged,
                         focusable: true,
                         disabled: !state.hasData,
@@ -319,7 +326,7 @@ class CamForceOverlay extends preact.Component {
                     context: props.context,
                     onClose: props.onClose,
                     tabs: [
-                        preact.h(Tab, { icon: '/img/icons/gforce.svg', label: Format.stringLiteral("Track Viz") }),
+                        preact.h(Tab, { icon: '/img/icons/gforce.svg', label: Format.stringLiteral("TrackViz") }),
                         preact.h(Tab, { icon: '/img/icons/create.svg', label: Format.stringLiteral("Track Tools") }),
                         // preact.h(Tab, { icon: '/img/icons/placeholder.svg' }),
                         preact.h(Tab, { icon: '/img/icons/settings.svg', label: Format.stringLiteral("Settings") })
@@ -384,13 +391,13 @@ class CamForceOverlay extends preact.Component {
     };
 
     onLatGChanged = (value) => {
-        this.setState({ latG: value });
+        this.setState({ forceLockLatG: value });
         Engine.sendEvent("ProtrackLatGChanged", value);
     };
 
-    onPosGChanged = (value) => {
-        this.setState({ posG: value });
-        Engine.sendEvent("ProtrackPosGChanged", value);
+    onVertGChanged = (value) => {
+        this.setState({ forceLockVertG: value });
+        Engine.sendEvent("ProtrackVertGChanged", value);
     };
 
     onHeartlineChanged = (value) => {
