@@ -65,12 +65,19 @@ local NORMAL_TRACKMODE = 0
 local FVD_TRACKMODE = 1
 local ADVMOVE_TRACKMODE = 2
 
+---Sets a value on an object, while also setting to the datastore
+---@param name any
+---@param value any
+local function SetVariableOnObjectWithDatastore(object, name, value)
+    object[name] = value
+    api.ui2.SetDataStoreElement(protrackManager.context, name, value)
+end
+
 ---Sets a value, while also setting to the datastore
 ---@param name any
 ---@param value any
 local function SetVariableWithDatastore(name, value)
-    protrackManager[name] = value
-    api.ui2.SetDataStoreElement(protrackManager.context, name, value)
+    SetVariableOnObjectWithDatastore(protrackManager, name, value)
 end
 
 function protrackManager.SetupHooks()
@@ -233,9 +240,9 @@ function protrackManager.Activate(self)
                 nil
             );
 
-            protrackManager.overlayUI:AddListener_PosGValueChanged(
+            protrackManager.overlayUI:AddListener_VertGValueChanged(
                 function(newVal)
-                    FvdMode.posG = newVal
+                    SetVariableOnObjectWithDatastore(FvdMode, "forceLockVertG", newVal)
                     self:SetTrackBuilderDirty()
                 end,
                 nil
@@ -243,7 +250,7 @@ function protrackManager.Activate(self)
 
             protrackManager.overlayUI:AddListener_LatGValueChanged(
                 function(newVal)
-                    FvdMode.latG = newVal
+                    SetVariableOnObjectWithDatastore(FvdMode, "forceLockLatG", newVal)
                     self:SetTrackBuilderDirty()
                 end,
                 nil
@@ -289,6 +296,8 @@ function protrackManager.ZeroData(self)
     -- Datastore updates
     SetVariableWithDatastore("playingInDir", 0)
     SetVariableWithDatastore("trackMode", 0)
+    SetVariableOnObjectWithDatastore(FvdMode, "forceLockVertG", 1)
+    SetVariableOnObjectWithDatastore(FvdMode, "forceLockLatG", 0)
 end
 
 function protrackManager.StartEditMode(self, trackEditMode)
