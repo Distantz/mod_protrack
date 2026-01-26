@@ -58,6 +58,8 @@ protrackManager.context = nil
 protrackManager.trackMode = 0
 protrackManager.newTrackModeRequest = 0
 protrackManager.playingInDir = 0
+
+---@type DraggableWidgets
 protrackManager.draggableWidget = nil
 protrackManager.staticSelf = nil
 
@@ -129,7 +131,7 @@ function protrackManager.SetupHooks()
 
     HookManager:AddHook(
         "Editors.Track.TrackEditMode",
-        "TransitionOut",
+        "Shutdown",
         function(originalMethod, slf)
             originalMethod(slf)
             protrackManager.staticSelf:EndEditMode()
@@ -397,7 +399,10 @@ end
 function protrackManager.EndEditMode(self)
     self:ZeroData()
     protrackManager.overlayUI:Hide()
-    self.draggableWidget = nil
+    if self.draggableWidget ~= nil then
+        self.draggableWidget:Shutdown()
+        self.draggableWidget = nil
+    end
 end
 
 function protrackManager.SwitchTrackMode(self, newTrackMode)
@@ -408,16 +413,12 @@ function protrackManager.SwitchTrackMode(self, newTrackMode)
 end
 
 function protrackManager.StartTrackEdit(self)
-    logger:Info("Start edit for mode: " .. global.tostring(self.trackMode))
-
     if self.trackMode == ADVMOVE_TRACKMODE then
         AdvMoveMode.StartEdit(self.draggableWidget, Datastore.trackEntityTransform)
     end
 end
 
 function protrackManager.EndTrackEdit(self)
-    logger:Info("End edit for mode: " .. global.tostring(self.trackMode))
-
     if self.trackMode == FVD_TRACKMODE then
         FvdMode.EndEdit()
     elseif self.trackMode == ADVMOVE_TRACKMODE then
