@@ -17,25 +17,12 @@ local require = global.require
 ---@diagnostic disable-next-line: deprecated
 local module = global.module
 
-local Object = require("Common.object")
-local Mutators = require("Environment.ModuleMutators")
 local Vector3 = require("Vector3")
 local Quaternion = require("Quaternion")
-local CameraUtils = require("Components.Cameras.CameraUtils")
-local TransformQ = require("TransformQ")
 local Utils = require("protrack.utils")
-local Gizmo = require("protrack.displaygizmo")
-local Line = require("protrack.displayline")
-local Cam = require("protrack.cam")
 local Datastore = require("protrack.datastore")
-local FrictionHelper = require("database.frictionhelper")
-local InputEventHandler = require("Components.Input.InputEventHandler")
 local logger = require("forgeutils.logger").Get("FvdMode")
-local ForceOverlay = require("protrack.ui.forceoverlay")
-local table = require("common.tableplus")
 local mathUtils = require("Common.mathUtils")
-local UnitConversion = require("Helpers.UnitConversion")
-require("forgeutils.logger").GLOBAL_LEVEL = "INFO"
 
 --/ Main class definition
 ---@class FvdMode
