@@ -24,14 +24,19 @@ local HookManager = require("forgeutils.hookmanager")
 local Utils = require("protrack.utils")
 local FvdMode = require("protrack.modes.fvdmode")
 local AdvMoveMode = require("protrack.modes.advancedmovemode")
-local Gizmo = require("protrack.displaygizmo")
+
+local TrackPointGizmo = require("protrack.gizmo.trackpointgizmo")
+local TrackReferenceGizmo = require("protrack.gizmo.trackreferencegizmo")
+
 local Cam = require("protrack.cam")
 local Datastore = require("protrack.datastore")
 local FrictionHelper = require("database.frictionhelper")
 local InputEventHandler = require("Components.Input.InputEventHandler")
-local logger = require("forgeutils.logger").Get("ProTrackManager")
 local ForceOverlay = require("protrack.ui.forceoverlay")
 local UnitConversion = require("Helpers.UnitConversion")
+
+local logger = require("forgeutils.logger").Get("ProTrackManager", "INFO")
+
 --/ Main class definition
 ---@class protrackManager
 local protrackManager = module(..., Mutators.Manager())
@@ -59,8 +64,17 @@ protrackManager.trackMode = 0
 protrackManager.newTrackModeRequest = 0
 protrackManager.playingInDir = 0
 
+-- Gizmo
+
 ---@type DraggableWidgets
 protrackManager.draggableWidget = nil
+
+---@type protrack.gizmo.TrackReferenceGizmo
+protrackManager.referencePointGizmo = nil
+
+---@type protrack.gizmo.TrackPointGizmo
+protrackManager.mainTrackPointGizmo = nil
+
 protrackManager.staticSelf = nil
 
 local NORMAL_TRACKMODE = 0
@@ -181,13 +195,10 @@ function protrackManager.Activate(self)
     Cam.GetPreviewCameraEntity()
     logger:Info("Finished Camera")
 
-    self.gizmoInitCoroutine = Gizmo.InitGizmo()
-    local line = require("protrack.displayline")
+    local line = require("protrack.gizmo.displayline")
     self.line = line:new()
     FvdMode.line = line:new()
-    logger:Info("Finished Lines")
 
-    logger:Info("Done gizmo setup")
     logger:Info("Initialising UI")
     SetVariableWithDatastore(false, "cameraIsHeartlineMode")
 
@@ -305,6 +316,8 @@ end
 function protrackManager.StartEditMode(self, trackEditMode)
     logger:Info("Starting edit mode!")
 
+    -- Reset data
+    logger:Info("Resetting data")
     self:ZeroData()
 
     ---@type TrackEditMode
@@ -371,6 +384,13 @@ function protrackManager.StartEditMode(self, trackEditMode)
     self.draggableWidget = DraggableWidgets:new()
     logger:Info("Finished Draggable Widget")
 
+    logger:Info("Spawning world-space gizmos")
+    self.mainTrackPointGizmo = TrackPointGizmo.new()
+    self.referencePointGizmo = TrackReferenceGizmo.new()
+    self.referencePointGizmo:SetVisible(false)
+    self.mainTrackPointGizmo:SetVisible(false)
+    logger:Info("Finished world-space gizmos")
+
     self.draggableWidget:BindButtonHandlers(
         function()
             -- Confirm (unused)
@@ -396,13 +416,23 @@ function protrackManager.StartEditMode(self, trackEditMode)
     protrackManager.overlayUI:Show()
 end
 
+local function shutdownGizmo(gizmo)
+    if gizmo ~= nil then
+        gizmo:Shutdown()
+    end
+end
+
 function protrackManager.EndEditMode(self)
     self:ZeroData()
     protrackManager.overlayUI:Hide()
-    if self.draggableWidget ~= nil then
-        self.draggableWidget:Shutdown()
-        self.draggableWidget = nil
-    end
+
+    shutdownGizmo(self.draggableWidget)
+    shutdownGizmo(self.mainTrackPointGizmo)
+    shutdownGizmo(self.referencePointGizmo)
+
+    self.draggableWidget = nil
+    self.mainTrackPointGizmo = nil
+    self.referencePointGizmo = nil
 end
 
 function protrackManager.SwitchTrackMode(self, newTrackMode)
@@ -436,6 +466,7 @@ end
 function protrackManager.NewTrainPosition(self)
     logger:Info("NewTrainPosition()")
     local trackEntity = self.trackEditMode.tActiveData:GetTrackEntity()
+    logger:Info("trackEntity")
 
     -- Early exit
     Datastore.trackWalkerOrigin = Utils.GetFirstCarData(trackEntity)
@@ -456,8 +487,12 @@ end
 function protrackManager.ClearWalkerOrigin(self)
     Datastore.trackWalkerOrigin = nil
     self.line:ClearPoints()
-    Gizmo.SetMarkerGizmosVisible(false)
-    Gizmo.SetTrackGizmosVisible(false)
+    if self.referencePointGizmo ~= nil then
+        self.referencePointGizmo:SetVisible(false)
+    end
+    if self.mainTrackPointGizmo ~= nil then
+        self.mainTrackPointGizmo:SetVisible(false)
+    end
     self:StopTrackCamera()
 
     -- Datastore
@@ -465,6 +500,7 @@ function protrackManager.ClearWalkerOrigin(self)
 end
 
 function protrackManager.NewWalk(self)
+    logger:Info("NewWalk()")
     Datastore.tDatapoints = nil
 
     if not Utils.IsTrackOriginValid(Datastore.trackWalkerOrigin) then
@@ -505,12 +541,16 @@ function protrackManager.NewWalk(self)
     end
 
     -- Turn it on
-    Gizmo.SetMarkerGizmosVisible(true)
-    Gizmo.SetTrackGizmosVisible(not self.inCamera)
-    Gizmo.SetStartEndMarkers(
-        Datastore.trackEntityTransform:ToWorld(
-            Utils.TrackTransformToTransformQ(Datastore.trackWalkerOrigin.transform)
-        ),
+    logger:Info("SetVisible()")
+    self.mainTrackPointGizmo:SetVisible(true)
+    self.referencePointGizmo:SetVisible(not self.inCamera)
+
+    logger:Info("SetRefPointTransform()")
+    self.referencePointGizmo:SetRefPointTransform(
+        Datastore.trackEntityTransform:ToWorld(Utils.TrackTransformToTransformQ(Datastore.trackWalkerOrigin.transform))
+    )
+    logger:Info("SetEndPointTransform()")
+    self.referencePointGizmo:SetEndPointTransform(
         Datastore.trackEntityTransform:ToWorld(Datastore.tDatapoints[#Datastore.tDatapoints].transform)
     )
 end
@@ -522,7 +562,7 @@ function protrackManager.StartTrackCamera(self)
 
     if not self.inCamera then
         self.line:ClearPoints()
-        Gizmo.SetMarkerGizmosVisible(false)
+        self.mainTrackPointGizmo:SetVisible(false)
         Cam.StartRideCamera()
         self.inCamera = true
     end
@@ -533,8 +573,8 @@ end
 function protrackManager.StopTrackCamera(self)
     if self.inCamera then
         self.line:DrawPoints()
-        Gizmo.SetTrackGizmosVisible(true)
-        Gizmo.SetMarkerGizmosVisible(true)
+        self.mainTrackPointGizmo:SetVisible(true)
+        self.referencePointGizmo:SetVisible(true)
         Cam.StopRideCamera()
         self.inCamera = false
     end
@@ -543,17 +583,6 @@ function protrackManager.StopTrackCamera(self)
 end
 
 function protrackManager.Advance(self, deltaTime)
-    -- Handle gizmo init.
-    if self.gizmoInitCoroutine ~= nil then
-        coroutine.resume(self.gizmoInitCoroutine)
-        if coroutine.status(self.gizmoInitCoroutine) == "dead" then
-            logger:Info("Regeneration complete")
-            Gizmo.SetMarkerGizmosVisible(false)
-            Gizmo.SetTrackGizmosVisible(false)
-            self.gizmoInitCoroutine = nil
-        end
-    end
-
     if self.inputEventHandler == nil or self.inputManagerAPI == nil then
         return
     end
@@ -645,25 +674,20 @@ function protrackManager.Advance(self, deltaTime)
         api.transform.SetPosition(Cam.PreviewCameraEntity, wsTrans:GetPos() + wsCamOffsetUsed)
         api.transform.SetOrientation(Cam.PreviewCameraEntity, wsTrans:GetOr())
 
-        Gizmo.SetMarkerData(wsTrans:WithPos(wsTrans:GetPos() + wsHeartlineOffset), pt.g)
+        self.mainTrackPointGizmo:SetTransform(
+            wsTrans:WithPos(wsTrans:GetPos() + wsHeartlineOffset)
+        )
+        self.mainTrackPointGizmo:SetGForce(
+            pt.g
+        )
 
-        --  logger:Info("getting datapoints")
         local indexDatapoint = Datastore.GetFloorIndexForTime(self.simulationTime)
-
         local numDatapoints = Datastore.GetNumDatapoints()
 
-        -- logger:Info(table.tostring(indexDatapoint) ..
-        --     "/" .. table.tostring(numDatapoints) .. " | " .. table.tostring(pt.g:GetY()) ..
-        --     "," .. table.tostring(pt.g:GetX()))
-        -- logger:Info("Sending current keyframe")
         api.ui2.SetDataStoreElement(protrackManager.context, "currKeyframe", indexDatapoint)
-        -- logger:Info("Sending keyframe count")
         api.ui2.SetDataStoreElement(protrackManager.context, "keyframeCount", numDatapoints)
-        -- logger:Info("Sending vertical gforce")
         api.ui2.SetDataStoreElement(protrackManager.context, "vertGForce", pt.g:GetY())
-        -- logger:Info("Sending lateral gforce")
         api.ui2.SetDataStoreElement(protrackManager.context, "latGForce", pt.g:GetX())
-        --logger:Info("Sending speed")
         api.ui2.SetDataStoreElement(protrackManager.context, "speed",
             UnitConversion.Speed_ToUserPref(pt.speed, UnitConversion.Speed_MS))
     end
