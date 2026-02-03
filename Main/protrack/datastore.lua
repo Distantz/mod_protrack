@@ -14,12 +14,16 @@ local Datastore = {}
 Datastore.tSimulationDelta = (1.0 / 30.0)
 
 ---@class TrackMeasurement
----@field g any
----@field transform any
----@field speed number
+---@field g table
+---@field transform table
 
----@type TrackMeasurement[]|nil
-Datastore.tDatapoints = nil
+---@class TrainMeasurement
+---@field originMeasurement TrackMeasurement The main (origin) measurement.
+---@field originVelocity number The main (origin) velocity.
+---@field followerMeasurements { [number]: TrackMeasurement } Distance offsets and measurements.
+
+---@type TrainMeasurement[]|nil
+Datastore.datapoints = nil
 Datastore.trackEntityTransform = nil
 Datastore.trackWalkerOrigin = nil
 Datastore.heartlineOffset = Vector3.Zero
@@ -27,7 +31,7 @@ Datastore.heartlineOffset = Vector3.Zero
 --- Returns whether the datastore has any data for display
 ---@return boolean
 function Datastore.HasData()
-    return Datastore.tDatapoints ~= nil and #Datastore.tDatapoints >= 2
+    return Datastore.datapoints ~= nil and #Datastore.datapoints >= 2
 end
 
 --- Returns the timestamp for an index, which can be fractional.
@@ -64,7 +68,7 @@ function Datastore.SampleDatapointAtFloatIndex(floatIndex)
         return nil
     end
 
-    local numPts = #Datastore.tDatapoints
+    local numPts = #Datastore.datapoints
     local floor = global.math.floor(floatIndex)
     local fractionalLerp = floatIndex - floor
 
@@ -72,15 +76,31 @@ function Datastore.SampleDatapointAtFloatIndex(floatIndex)
     local toIdx = global.math.min(fromIdx + 1, numPts)
 
     -- Get points
-    local fromPt = Datastore.tDatapoints[fromIdx]
-    local toPt = Datastore.tDatapoints[toIdx]
+    local fromPt = Datastore.datapoints[fromIdx]
+    local toPt = Datastore.datapoints[toIdx]
 
     -- Construct new PT with slerping.
 
-    local lerpPos = mathUtils.Lerp(fromPt.transform:GetPos(), toPt.transform:GetPos(), fractionalLerp)
-    local lerpOr = Quaternion.SLerp(fromPt.transform:GetOr(), toPt.transform:GetOr(), fractionalLerp)
-    local lerpG = mathUtils.Lerp(fromPt.g, toPt.g, fractionalLerp)
-    local lerpSpeed = mathUtils.Lerp(fromPt.speed, toPt.speed, fractionalLerp)
+    local lerpPos = mathUtils.Lerp(
+        fromPt.originMeasurement.transform:GetPos(),
+        toPt.originMeasurement.transform:GetPos(),
+        fractionalLerp
+    )
+    local lerpOr = Quaternion.SLerp(
+        fromPt.originMeasurement.transform:GetOr(),
+        toPt.originMeasurement.transform:GetOr(),
+        fractionalLerp
+    )
+    local lerpG = mathUtils.Lerp(
+        fromPt.originMeasurement.g,
+        toPt.originMeasurement.g,
+        fractionalLerp
+    )
+    local lerpSpeed = mathUtils.Lerp(
+        fromPt.originVelocity,
+        toPt.originVelocity,
+        fractionalLerp
+    )
 
     return {
         g = lerpG,
@@ -100,13 +120,13 @@ end
 ---Returns the total time length of the datastore
 ---@return number
 function Datastore.GetTimeLength()
-    return #Datastore.tDatapoints * Datastore.tSimulationDelta
+    return #Datastore.datapoints * Datastore.tSimulationDelta
 end
 
 ---Returns the number of datapoints in the datastore
 ---@return integer
 function Datastore.GetNumDatapoints()
-    return #Datastore.tDatapoints
+    return #Datastore.datapoints
 end
 
 return Datastore

@@ -1,13 +1,13 @@
-local global = _G
+local global                    = _G
 ---@type Api
 ---@diagnostic disable-next-line: undefined-field
-local api = global.api
-local pairs = global.pairs
-local require = global.require
-local logger = require("forgeutils.logger").Get("ProTrackUtil")
-local Vector3 = require("Vector3")
-local TransformQ = require("TransformQ")
-local Quaternion = require("Quaternion")
+local api                       = global.api
+local pairs                     = global.pairs
+local require                   = global.require
+local logger                    = require("forgeutils.logger").Get("ProTrackUtil", "INFO")
+local Vector3                   = require("Vector3")
+local TransformQ                = require("TransformQ")
+local Quaternion                = require("Quaternion")
 
 ---@class TrackOrigin
 ---@field transform any The transform of the middle of the train.
@@ -16,7 +16,7 @@ local Quaternion = require("Quaternion")
 ---@field trainLength number The train length in metres.
 ---@field camOffset any The local camera offset from the first bogie to the front bumper camera.
 
-local Utils = {}
+local Utils                     = {}
 Utils.CAM_OFFSET_FORWARD_ADJUST = 0.75
 
 ---Returns a crude upper bound on train size
@@ -225,12 +225,270 @@ function Utils.MultQuaternion(left, right)
     return Quaternion.Identity:WithX(newV:GetX()):WithY(newV:GetY()):WithZ(newV:GetZ()):WithW(newW)
 end
 
+---@class TrackState
+---@field heartlinePositionWs table The heartline position, in world space.
+---@field heartlineVelocityWs table The heartline velocity, in world space.
+---@field accelerationLs table The acceleration at the heartline, in local space.
+---@field transformLs table The track transform of the state, in local space.
+
+---@class TrainState
+---@field originState TrackState The origin state.
+---@field originVelocity number The origin velocity.
+---@field followerStates {[number]: TrackState} The follower states.
+
+
+---Converts a track state into a track measurement.
+---@param trackState TrackState The track state
+---@return TrackMeasurement
+local function TrackStateToTrackMeasurement(trackState)
+    ---@type TrackMeasurement
+    return {
+        g = trackState.accelerationLs,
+        transform = trackState.transformLs
+    }
+end
+
+---Converts a train state into a train measurement.
+---@param trainState TrainState The train state
+---@return TrainMeasurement
+local function TrainStateToTrainMeasurement(trainState)
+    local followerMeasurements = {}
+    for followerDistance, followerState in global.pairs(trainState.followerStates) do
+        followerMeasurements[followerDistance] = TrackStateToTrackMeasurement(followerState)
+    end
+
+    ---@type TrainMeasurement
+    return {
+        originMeasurement = TrackStateToTrackMeasurement(trainState.originState),
+        originVelocity = trainState.originVelocity,
+        followerMeasurements = followerMeasurements
+    }
+end
+
+--- Returns the next heartline state
+---@param lastState TrackState The last heartline state.
+---@param newTrainOrigin any The new train origin.
+---@param originOffset number The offset forward or backward from the origin.
+---@param heartlineOffset any The heartline offset in local space.
+---@param gravity number The gravity multiplier.
+---@param timestep number The timestep.
+---@return TrackState
+local function GetNextTrackState(
+    lastState,
+    newTrainOrigin,
+    originOffset,
+    heartlineOffset,
+    gravity,
+    timestep
+)
+    -- Only move if not origin
+    if (originOffset ~= 0) then
+        newTrainOrigin:MoveLocation(originOffset)
+    end
+
+    local thisTransform = Utils.TrackTransformToTransformQ(newTrainOrigin)
+
+    -- New heartline acceleration calc using finite difference method
+    local thisHeartlinePosition = Utils.GetHeartlinePosition(thisTransform, heartlineOffset)
+    local thisHeartlineVelocity = (thisHeartlinePosition - lastState.heartlinePositionWs) / timestep
+    local actualAccelWS = -((thisHeartlineVelocity - lastState.heartlineVelocityWs) / timestep)
+        - Vector3.YAxis * gravity
+
+    -- Combined acceleration
+    ---@diagnostic disable-next-line: assign-type-mismatch
+    local thisAcceleration = -thisTransform:ToLocalDir(actualAccelWS) / gravity
+
+    return {
+        heartlinePositionWs = thisHeartlinePosition,
+        heartlineVelocityWs = thisHeartlineVelocity,
+        accelerationLs = thisAcceleration,
+        transformLs = thisTransform
+    }
+end
+
+--- Returns the next train state
+---@param lastState TrainState The last train state.
+---@param nextVelocity number The next velocity to use.
+---@param trainOrigin any The new train origin.
+---@param heartlineOffset any The heartline offset in local space.
+---@param gravity number The gravity multiplier.
+---@param timestep number The timestep.
+---@return TrainState
+local function StepTrainState(
+    lastState,
+    nextVelocity,
+    trainOrigin,
+    heartlineOffset,
+    gravity,
+    timestep
+)
+    -- Get next state
+    local nextOriginState = GetNextTrackState(
+        lastState.originState,
+        trainOrigin,
+        0,
+        heartlineOffset,
+        gravity,
+        timestep
+    )
+
+    local nextFollowerOffsets = {}
+    for followerDistance, lastFollowerState in global.pairs(lastState.followerStates) do
+        nextFollowerOffsets[followerDistance] = GetNextTrackState(
+            lastFollowerState,
+            trainOrigin:CopyLocation(),
+            followerDistance,
+            heartlineOffset,
+            gravity,
+            timestep
+        )
+    end
+
+    ---@type TrainState
+    return {
+        originState = nextOriginState,
+        originVelocity = nextVelocity,
+        followerStates = nextFollowerOffsets
+    }
+end
+
+--- Returns a starting heartline state from initial data.
+---@param trackOrigin table The track origin.
+---@param startingVelocity number The starting velocity.
+---@param startingAcceleration table The starting acceleration.
+---@param originOffset number The offset forward or backward from the origin.
+---@param heartlineOffset any The heartline offset.
+local function GetStartingTrackState(
+    trackOrigin,
+    startingVelocity,
+    startingAcceleration,
+    originOffset,
+    heartlineOffset
+)
+    if (originOffset ~= 0) then
+        trackOrigin:MoveLocation(originOffset)
+    end
+
+    local thisTransform = Utils.TrackTransformToTransformQ(trackOrigin)
+
+    ---@type TrackState
+    return {
+        accelerationLs = startingAcceleration,
+        heartlinePositionWs = Utils.GetHeartlinePosition(thisTransform, heartlineOffset),
+        heartlineVelocityWs = thisTransform:GetF() * startingVelocity,
+        transformLs = thisTransform
+    }
+end
+
+--- Returns a starting heartline state from initial data.
+---@param trackOriginData TrackOrigin The track origin.
+---@param heartlineOffset any The heartline offset.
+---@return TrainState state The beginning train state.
+local function GetStartingTrainState(
+    trackOriginData,
+    heartlineOffset
+)
+    -- Get next state
+    local originState = GetStartingTrackState(
+        trackOriginData.transform,
+        trackOriginData.speed,
+        trackOriginData.gforce,
+        0,
+        heartlineOffset
+    )
+
+    -- Decide what follower distances are picked for measurement here.
+    local halfLength = trackOriginData.trainLength / 2.0
+    local distances = {
+        halfLength,
+        -halfLength
+    }
+
+    local followerStates = {}
+    for _, followerDistance in global.ipairs(distances) do
+        followerStates[followerDistance] = GetStartingTrackState(
+            trackOriginData.transform:CopyLocation(),
+            trackOriginData.speed,
+            trackOriginData.gforce,
+            followerDistance,
+            heartlineOffset
+        )
+    end
+
+    ---@type TrainState
+    return {
+        originState = originState,
+        followerStates = followerStates,
+        originVelocity = trackOriginData.speed
+    }
+end
+
+--- Steps the velocity.
+---@param thisState TrainState The last train state.
+---@param frictionValues FrictionValues The friction values.
+---@param gravity number The gravity multiplier.
+---@param timestep number The timestep.
+---@return number velocity The next velocity.
+local function StepVelocity(
+    thisState,
+    frictionValues,
+    gravity,
+    timestep
+)
+    -- Calculate speed
+    local slopeAccel = gravity * Vector3.Dot(-Vector3.YAxis, thisState.originState.transformLs:GetF()) -- m/s²
+
+    -- calculate friction deceleration
+    -- m * a = 0.5 * p * v^2 * Cd * A
+    -- a = (0.5 * p * v^2 * Cd * A) / m
+    -- a = 0.5 * p * v^2 * frictionValues.airResistance
+    -- a = 0.5 * 1.225 * v^2 * frictionValues.airResistance
+    ---@diagnostic disable-next-line: undefined-field
+    local gForceDragMultiplier = math.min(thisState.originState.accelerationLs:GetLength(), 1.0)
+    local airResist = 0.5 * 1.225 * (thisState.originVelocity * thisState.originVelocity) * frictionValues.airResistance
+    local finalFrictionAccel = (frictionValues.dynamicFriction * gForceDragMultiplier * gravity + airResist) *
+        frictionValues.frictionMultiplier
+
+    return (thisState.originVelocity + (slopeAccel - finalFrictionAccel) * timestep)
+end
+
+--- Steps the walker forward.
+---@param lastState TrainState The last train state.
+---@param trainOrigin any The new train origin.
+---@param timestep number The timestep.
+---@param minWalkDistance number The minimum distance to walk.
+local function StepTrackWalker(
+    lastState,
+    trainOrigin,
+    timestep,
+    minWalkDistance
+)
+    -- move forward on speed by timestep
+    local distStepForward = lastState.originVelocity * timestep
+    trainOrigin:MoveLocation(distStepForward)
+    local thisTransform = Utils.TrackTransformToTransformQ(trainOrigin)
+
+    if lastState.originState.transformLs == nil or thisTransform == nil then
+        logger:Info("Exit! Transform was null")
+        return false
+    end
+
+    local thisPosition = thisTransform:GetPos()
+    local posDifference = thisPosition - lastState.originState.transformLs:GetPos()
+    if Vector3.Length(posDifference) < minWalkDistance then
+        logger:Info("Exit! Didn't walk enough!")
+        return false
+    end
+
+    return true
+end
+
 --- Walks the track. Returns datapoints.
 ---@param trackOriginData TrackOrigin The origin to walk from.
 ---@param frictionValues FrictionValues The friction values to use.
 ---@param heartlineOffset any The heartline offset.
 ---@param timestep number The timestep of the simulation.
----@return TrackMeasurement[]?
+---@return TrainMeasurement[]?
 function Utils.WalkTrack(trackOriginData, frictionValues, heartlineOffset, timestep)
     if trackOriginData == nil then
         logger:Info("Exit! Starting point is invalid. Origin is nil.")
@@ -245,13 +503,13 @@ function Utils.WalkTrack(trackOriginData, frictionValues, heartlineOffset, times
     -- Use a different walker,
     -- to prevent polluting the other one.
     local copyLocation = trackOriginData.transform:CopyLocation()
+
     if copyLocation == nil then
         logger:Info("Exit! Starting point is invalid. Copy of track transform failed.")
         return nil
     end
 
-    local lastTransform = Utils.TrackTransformToTransformQ(copyLocation)
-    if lastTransform == nil then
+    if Utils.TrackTransformToTransformQ(copyLocation) == nil then
         logger:Info("Exit! Starting point is invalid. GetLocationTransform failed.")
         return nil
     end
@@ -266,81 +524,40 @@ function Utils.WalkTrack(trackOriginData, frictionValues, heartlineOffset, times
         return nil
     end
 
-    local curSpeed = trackOriginData.speed
     local minWalkDist = 0.002
     local gravity = 9.81
-    local lastPosition = lastTransform:GetPos()
-    local lastVelo = lastTransform:GetF() * curSpeed
 
-    local lastHeartlinePosition = Utils.GetHeartlinePosition(lastTransform, heartlineOffset)
-    local lastHeartlineVelocity = lastVelo
+    local currentState = GetStartingTrainState(trackOriginData, heartlineOffset)
+    ---@type TrainMeasurement[]
+    local measurements = {}
+    local trackOrigin = trackOriginData.transform
 
-    local dataPts = {}
-    do
-        dataPts[1] = {
-            g = (trackOriginData.gforce) / gravity + lastTransform:ToLocalDir(Vector3.YAxis),
-            transform = lastTransform,
-            speed = trackOriginData.speed
-        }
-    end
-
-    while (curSpeed > 0) do
-        local distStepForward = curSpeed * timestep
-
-        copyLocation:MoveLocation(distStepForward)
-        local thisTransform = Utils.TrackTransformToTransformQ(copyLocation)
-
-        if lastTransform == nil or thisTransform == nil then
-            logger:Info("Exit! Transform was null")
-            break
+    while (currentState.originVelocity > 0) do
+        -- Step speed.
+        local nextVelocity = StepVelocity(currentState, frictionValues, gravity, timestep)
+        if (nextVelocity < 0) then
+            return measurements
         end
 
-        local thisPosition = thisTransform:GetPos()
-        local thisSpeed = curSpeed
-        local thisVelo = thisTransform:GetF() * thisSpeed
-        local posDifference = thisPosition - lastPosition
-        if Vector3.Length(posDifference) < minWalkDist then
-            logger:Info("Exit! Didn't walk enough!")
-            break
+        -- Step walker.
+        if not StepTrackWalker(currentState, trackOrigin, timestep, minWalkDist) then
+            return measurements
         end
 
-        -- New heartline acceleration calc using finite difference method
-        local thisHeartlinePosition = Utils.GetHeartlinePosition(thisTransform, heartlineOffset)
-        local thisHeartlineVelocity = (thisHeartlinePosition - lastHeartlinePosition) / timestep
-        local actualAccelWS = -((thisHeartlineVelocity - lastHeartlineVelocity) / timestep) - Vector3.YAxis * gravity
+        -- Valid spot, record this point.
+        measurements[#measurements + 1] = TrainStateToTrainMeasurement(currentState)
 
-        -- Combined acceleration
-        local localAccelG = -thisTransform:ToLocalDir(actualAccelWS) / gravity
-
-        -- Calculate speed
-        local slopeAccel = gravity * Vector3.Dot(-Vector3.YAxis, thisTransform:GetF()) -- m/s²
-
-        -- calculate friction deceleration
-        -- m * a = 0.5 * p * v^2 * Cd * A
-        -- a = (0.5 * p * v^2 * Cd * A) / m
-        -- a = 0.5 * p * v^2 * frictionValues.airResistance
-        -- a = 0.5 * 1.225 * v^2 * frictionValues.airResistance
-        ---@diagnostic disable-next-line: undefined-field
-        local gForceDragMultiplier = math.min(localAccelG:GetLength(), 1.0)
-        local airResist = 0.5 * 1.225 * (thisSpeed * thisSpeed) * frictionValues.airResistance
-        local finalFrictionAccel = (frictionValues.dynamicFriction * gForceDragMultiplier * gravity + airResist) *
-            frictionValues.frictionMultiplier
-
-        curSpeed = (curSpeed + (slopeAccel - finalFrictionAccel) * timestep)
-
-        dataPts[#dataPts + 1] = {
-            g = localAccelG,
-            transform = thisTransform,
-            speed = curSpeed
-        }
-        lastTransform = thisTransform
-        lastPosition = thisPosition
-        lastVelo = thisVelo
-        lastHeartlinePosition = thisHeartlinePosition
-        lastHeartlineVelocity = thisHeartlineVelocity
+        -- And then set current state to the next velocity.
+        currentState = StepTrainState(
+            currentState,
+            nextVelocity,
+            trackOrigin,
+            heartlineOffset,
+            gravity,
+            timestep
+        )
     end
-
-    return dataPts
+    return measurements
 end
 
 --- Prints any Lua table.

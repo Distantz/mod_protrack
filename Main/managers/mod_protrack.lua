@@ -304,7 +304,7 @@ function protrackManager.ZeroData(self)
     self.simulationTime = 0
     self.tWorldAPIs = nil
     self.inputManagerAPI = nil
-    Datastore.tDatapoints = nil
+    Datastore.datapoints = nil
 
     -- Datastore updates
     SetVariableWithDatastore("playingInDir", 0)
@@ -500,21 +500,21 @@ function protrackManager.ClearWalkerOrigin(self)
 end
 
 function protrackManager.NewWalk(self)
-    logger:Info("NewWalk()")
-    Datastore.tDatapoints = nil
-
+    Datastore.datapoints = nil
     if not Utils.IsTrackOriginValid(Datastore.trackWalkerOrigin) then
         logger:Info("Invalid!")
         self:ClearWalkerOrigin()
         return
     end
 
-    Datastore.tDatapoints = Utils.WalkTrack(
+    Datastore.datapoints = Utils.WalkTrack(
         Datastore.trackWalkerOrigin,
         self.frictionValues,
         Datastore.heartlineOffset,
         Datastore.tSimulationDelta
     )
+
+    logger:Info("Utils.WalkTrack complete")
 
     -- if nil, our point is BS.
     -- Need to clear everything
@@ -526,10 +526,10 @@ function protrackManager.NewWalk(self)
 
     -- Set points
     local tPoints = {}
-    for i, datapoint in global.ipairs(Datastore.tDatapoints) do
+    for i, datapoint in global.ipairs(Datastore.datapoints) do
         tPoints[i] = Datastore.trackEntityTransform:ToWorldPos(
-            datapoint.transform:GetPos() +
-            datapoint.transform:ToWorldDir(Datastore.heartlineOffset)
+            datapoint.originMeasurement.transform:GetPos() +
+            datapoint.originMeasurement.transform:ToWorldDir(Datastore.heartlineOffset)
         )
     end
     self.line:SetPoints(tPoints)
@@ -551,12 +551,12 @@ function protrackManager.NewWalk(self)
     )
     logger:Info("SetEndPointTransform()")
     self.referencePointGizmo:SetEndPointTransform(
-        Datastore.trackEntityTransform:ToWorld(Datastore.tDatapoints[#Datastore.tDatapoints].transform)
+        Datastore.trackEntityTransform:ToWorld(Datastore.datapoints[#Datastore.datapoints].originMeasurement.transform)
     )
 end
 
 function protrackManager.StartTrackCamera(self)
-    if Datastore.tDatapoints == nil then
+    if Datastore.datapoints == nil then
         return
     end
 
