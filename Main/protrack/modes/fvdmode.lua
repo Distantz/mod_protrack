@@ -136,7 +136,7 @@ function FvdMode.StepPoint(lastPoint, userG, rollDelta, heartlineOffset, timeSte
 end
 
 function FvdMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
-    if not Datastore.HasData() or Vector3.Length(startT:GetPos() - Datastore.datapoints[#Datastore.datapoints].transform:GetPos()) > 0.02 then
+    if not Datastore.HasData() or Vector3.Length(startT:GetPos() - Datastore.datapoints[#Datastore.datapoints].measurements[1].transform:GetPos()) > 0.02 then
         return originalMethod(startT, tData)
     end
 
