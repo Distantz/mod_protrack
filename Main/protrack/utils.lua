@@ -10,12 +10,46 @@ local TransformQ = require("TransformQ")
 local Quaternion = require("Quaternion")
 
 ---@class TrackOrigin
----@field transform any
----@field gforce any
----@field speed any
----@field camOffset any
+---@field transform any The transform of the middle of the train.
+---@field gforce any The local G Force of the middle of the train.
+---@field speed number The speed of the train at the front bogie.
+---@field trainLength number The train length in metres.
+---@field camOffset any The local camera offset from the first bogie to the front bumper camera.
 
 local Utils = {}
+Utils.CAM_OFFSET_FORWARD_ADJUST = 0.75
+
+---Returns a crude upper bound on train size
+---@param worldApi WorldAPIs
+---@param trainType string
+---@param targetNumCars integer
+---@return number
+local function getUpperBoundOfTrainSize(worldApi, trainType, targetNumCars)
+    local currentNumCars = 0
+    local length = 0
+    while (currentNumCars ~= targetNumCars) do
+        currentNumCars = worldApi.trackedrides:LimitNumberOfCarsByTrainLength(trainType, targetNumCars, length)
+        length = length + 5
+    end
+    return length
+end
+
+
+---Returns a reasonably accurate lower bound on train size
+---@param worldApi WorldAPIs
+---@param trainType string
+---@param targetNumCars integer
+---@param startingLength number
+---@return number
+local function getLowerBoundOfTrainSize(worldApi, trainType, targetNumCars, startingLength)
+    local currentNumCars = targetNumCars
+    local length = startingLength
+    while (targetNumCars == currentNumCars) do
+        length = length - 0.1
+        currentNumCars = worldApi.trackedrides:LimitNumberOfCarsByTrainLength(trainType, currentNumCars, length)
+    end
+    return length
+end
 
 --- Returns the current track origin data of a ride.
 ---@param rideID table The entity ID of the ride.
@@ -29,6 +63,18 @@ function Utils.GetFirstCarData(rideID)
         return nil
     end
 
+    ---@diagnostic disable-next-line: param-type-mismatch
+    local rideHolder = api.track.GetTrackHolder(rideID)
+
+    local sTrainType = api.track.GetTrainType(rideHolder)
+    local numTrainCars = api.track.GetNumCarsPerTrain(rideHolder)
+
+    local upperBound = getUpperBoundOfTrainSize(worldAPI, sTrainType, numTrainCars)
+    local lowerBound = getLowerBoundOfTrainSize(worldAPI, sTrainType, numTrainCars, upperBound)
+
+    local stationUsableArea = api.track.GetMinAllowedUseableStationLength(rideHolder)
+    local trainLength = lowerBound - stationUsableArea
+
     local trainID = tTrains[1]
     if trainID ~= nil and trainID ~= 0 then
         local tCars = worldAPI.trackedrides:GetCarsInTrain(trainID)
@@ -39,8 +85,7 @@ function Utils.GetFirstCarData(rideID)
             local speed = nil
 
             local trackTransforms = {}
-
-            for i, nCar in ipairs(tCars) do
+            for _, nCar in ipairs(tCars) do
                 ---@diagnostic disable-next-line: undefined-field
                 if nCar ~= api.entity.NullEntityID and worldAPI.trackedrides:GetCarIsOnTrack(nCar) then
                     numCar = numCar + 1.0
@@ -50,7 +95,7 @@ function Utils.GetFirstCarData(rideID)
                         speed = worldAPI.trackedrides:GetCarTrackSpeed(nCar)
                     end
 
-                    -- Add car distance
+                    -- Add track location
                     ---@diagnostic disable-next-line: param-type-mismatch, cast-local-type
                     trackTransforms[#trackTransforms + 1] = worldAPI.trackedrides:GetCarFrontTrackLocation_Display(nCar)
                     gForceAccum = worldAPI.trackedrides:GetCarLocalAcceleration(nCar)
@@ -69,50 +114,29 @@ function Utils.GetFirstCarData(rideID)
                 return nil
             end
 
-            local firstPosition = firstLocTrans:GetPos()
-
             -- Handle camera
             ---@diagnostic disable-next-line: param-type-mismatch
             local tAttachPoints = worldAPI.CameraAttachPoint:GetAllPointData(trainID, "TrackCarFrontBumperCamera")
             local localOffset = Vector3.Zero
             for _, tAttachData in pairs(tAttachPoints) do
                 localOffset = api.transform.GetTransform(tAttachData.CameraAttachID):GetPos()
-            end
-
-            -- Start at zero
-            local distances = {}
-            distances[1] = 0
-
-            for i = 2, #trackTransforms do
-                local transform = trackTransforms[i]:GetLocationTransform()
-
-                if transform ~= nil then
-                    distances[#distances + 1] = Vector3.Length(
-                        transform:GetPos() -
-                        firstPosition
-                    )
+                if localOffset ~= nil then
+                    goto continue
                 end
             end
+            ::continue::
 
-            -- Include an approximation of the back bogie.
-            if #distances > 1 then
-                distances[#distances + 1] = distances[#distances] + (distances[#distances] - distances[#distances - 1])
-            end
+            local moveBackward = (trainLength / 2.0) + Utils.CAM_OFFSET_FORWARD_ADJUST
+            local clampedTrainLength = global.math.max(trainLength, Utils.CAM_OFFSET_FORWARD_ADJUST * 2)
 
-            local avgDistance = 0
-            for i, dist in global.ipairs(distances) do
-                avgDistance = avgDistance + dist
-            end
-            avgDistance = avgDistance / #distances
-
-            -- Then move back trackTransform1 by that distance.
-            trackTransforms[1]:MoveLocation(-avgDistance)
+            trackTransforms[1]:MoveLocation(-moveBackward)
 
             return {
                 transform = trackTransforms[1],
                 speed = speed,
                 gforce = finGForce,
-                camOffset = localOffset
+                camOffset = localOffset,
+                trainLength = clampedTrainLength
             }
         end
     end
