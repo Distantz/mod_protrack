@@ -72,11 +72,8 @@ protrackManager.draggableWidget = nil
 ---@type protrack.gizmo.TrackReferenceGizmo
 protrackManager.referencePointGizmo = nil
 
----@type protrack.gizmo.TrackPointGizmo
-protrackManager.mainTrackPointGizmo = nil
-
 ---@type protrack.gizmo.TrackPointGizmo[]
-protrackManager.followerTrackPointGizmos = nil
+protrackManager.followerGizmos = nil
 protrackManager.distances = {}
 
 protrackManager.staticSelf = nil
@@ -389,15 +386,18 @@ function protrackManager.StartEditMode(self, trackEditMode)
     logger:Info("Finished Draggable Widget")
 
     logger:Info("Spawning world-space gizmos")
-    self.mainTrackPointGizmo = TrackPointGizmo.new()
-    self.followerTrackPointGizmos = {
+
+    self.followerGizmos = {
         [1] = TrackPointGizmo.new(),
         [2] = TrackPointGizmo.new(),
+        [3] = TrackPointGizmo.new(),
     }
+    for _, gizmo in global.ipairs(self.followerGizmos) do
+        gizmo:SetVisible(false)
+    end
 
     self.referencePointGizmo = TrackReferenceGizmo.new()
     self.referencePointGizmo:SetVisible(false)
-    self.mainTrackPointGizmo:SetVisible(false)
     logger:Info("Finished world-space gizmos")
 
     self.draggableWidget:BindButtonHandlers(
@@ -436,12 +436,15 @@ function protrackManager.EndEditMode(self)
     protrackManager.overlayUI:Hide()
 
     shutdownGizmo(self.draggableWidget)
-    shutdownGizmo(self.mainTrackPointGizmo)
     shutdownGizmo(self.referencePointGizmo)
 
     self.draggableWidget = nil
-    self.mainTrackPointGizmo = nil
-    self.referencePointGizmo = nil
+
+    -- Shut down all gizmos
+    for _, gizmo in global.ipairs(self.followerGizmos) do
+        shutdownGizmo(gizmo)
+    end
+    self.followerGizmos = nil
 end
 
 function protrackManager.SwitchTrackMode(self, newTrackMode)
@@ -493,12 +496,15 @@ end
 
 function protrackManager.ClearWalkerOrigin(self)
     Datastore.trackWalkerOrigin = nil
+    self.distances = nil
     self.line:ClearPoints()
     if self.referencePointGizmo ~= nil then
         self.referencePointGizmo:SetVisible(false)
     end
-    if self.mainTrackPointGizmo ~= nil then
-        self.mainTrackPointGizmo:SetVisible(false)
+    if self.followerGizmos ~= nil then
+        for _, gizmo in global.ipairs(self.followerGizmos) do
+            gizmo:SetVisible(false)
+        end
     end
     self:StopTrackCamera()
 
@@ -554,7 +560,9 @@ function protrackManager.NewWalk(self)
     end
 
     -- Turn it on
-    self.mainTrackPointGizmo:SetVisible(true)
+    for _, gizmo in global.ipairs(self.followerGizmos) do
+        gizmo:SetVisible(true)
+    end
     self.referencePointGizmo:SetVisible(not self.inCamera)
 
     self.referencePointGizmo:SetRefPointTransform(
@@ -572,7 +580,9 @@ function protrackManager.StartTrackCamera(self)
 
     if not self.inCamera then
         self.line:ClearPoints()
-        self.mainTrackPointGizmo:SetVisible(false)
+        for _, gizmo in global.ipairs(self.followerGizmos) do
+            gizmo:SetVisible(false)
+        end
         Cam.StartRideCamera()
         self.inCamera = true
     end
@@ -583,7 +593,9 @@ end
 function protrackManager.StopTrackCamera(self)
     if self.inCamera then
         self.line:DrawPoints()
-        self.mainTrackPointGizmo:SetVisible(true)
+        for _, gizmo in global.ipairs(self.followerGizmos) do
+            gizmo:SetVisible(true)
+        end
         self.referencePointGizmo:SetVisible(true)
         Cam.StopRideCamera()
         self.inCamera = false
@@ -666,10 +678,10 @@ function protrackManager.Advance(self, deltaTime)
         api.ui2.SetDataStoreElement(protrackManager.context, "time", self.simulationTime / Datastore.GetTimeLength())
 
         --- Helper func
-        ---@param distance number The distance
-        ---@param gizmo protrack.gizmo.TrackPointGizmo
-        local function setGizmoToPoint(distance, gizmo)
-            local pt = Datastore.SampleDatapointAtTime(self.simulationTime, distance)
+        ---@param index integer The gizmo index
+        ---@param gizmo protrack.gizmo.TrackPointGizmo The gizmo
+        local function setGizmoToPoint(index, gizmo)
+            local pt = Datastore.SampleDatapointAtTime(self.simulationTime, index)
             if pt == nil then
                 return
             end
@@ -685,7 +697,7 @@ function protrackManager.Advance(self, deltaTime)
                 pt.g
             )
 
-            if distance ~= 1 then
+            if index ~= 1 then
                 return
             end
 
@@ -710,9 +722,9 @@ function protrackManager.Advance(self, deltaTime)
                 UnitConversion.Speed_ToUserPref(pt.speed, UnitConversion.Speed_MS))
         end
 
-        setGizmoToPoint(1, self.mainTrackPointGizmo)
-        setGizmoToPoint(2, self.followerTrackPointGizmos[1])
-        setGizmoToPoint(3, self.followerTrackPointGizmos[2])
+        for i, gizmo in global.ipairs(self.followerGizmos) do
+            setGizmoToPoint(i, gizmo)
+        end
     end
 end
 
