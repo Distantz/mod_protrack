@@ -426,25 +426,33 @@ end
 ---@param lastState TrackState The last track state.
 ---@param stepForward number The step forward to take.
 ---@param minWalkDistance number The minimum distance to walk.
+---@param doChecks boolean Whether the function should perform costly checks.
 ---@return boolean
 local function WalkTrackState(
     lastState,
     stepForward,
-    minWalkDistance
+    minWalkDistance,
+    doChecks
 )
     -- move forward on speed by timestep
     lastState.trackOrigin:MoveLocation(stepForward)
+
+    -- Exit early to save perf
+    if not doChecks then
+        return true
+    end
+
     local thisTransform = Utils.TrackTransformToTransformQ(lastState.trackOrigin)
 
     if lastState.transformLs == nil or thisTransform == nil then
-        -- logger:Info("Exit! Transform was null")
+        logger:Info("Exit! Transform was null")
         return false
     end
 
     local thisPosition = thisTransform:GetPos()
     local posDifference = thisPosition - lastState.transformLs:GetPos()
     if Vector3.Length(posDifference) < minWalkDistance then
-        -- logger:Info("Exit! Didn't walk enough!")
+        logger:Info("Exit! Didn't walk enough!")
         return false
     end
 
@@ -466,8 +474,9 @@ local function WalkTrainState(
     -- walk all track states.
     -- only exit when the main track state exits.
     for i, trackPt in global.ipairs(lastState.trackPoints) do
-        local result = WalkTrackState(trackPt, distStepForward, minWalkDistance)
-        if i == 1 and not result then
+        local isFirst = i == 1
+        local result = WalkTrackState(trackPt, distStepForward, minWalkDistance, isFirst)
+        if isFirst and not result then
             return false
         end
     end
@@ -508,7 +517,7 @@ function Utils.WalkTrack(trackOriginData, additionalTrackOffsets, frictionValues
         return nil
     end
 
-    local minWalkDist = 0.002
+    local minWalkDist = 0.00002
     local gravity = 9.81
 
     local currentState = GetStartingTrainState(
@@ -527,9 +536,7 @@ function Utils.WalkTrack(trackOriginData, additionalTrackOffsets, frictionValues
         end
 
         -- Step walker.
-        if not WalkTrainState(currentState, timestep, minWalkDist) then
-            return measurements
-        end
+        local trackPositionValid = WalkTrainState(currentState, timestep, minWalkDist)
 
         -- Valid spot, record this point.
         measurements[#measurements + 1] = TrainStateToTrainMeasurement(currentState)
@@ -542,6 +549,11 @@ function Utils.WalkTrack(trackOriginData, additionalTrackOffsets, frictionValues
             for i, state in global.ipairs(thisMeasure.measurements) do
                 lastMeasure.measurements[i].g = state.g
             end
+        end
+
+        -- Exit if not valid
+        if not trackPositionValid then
+            return measurements
         end
 
         -- And then set current state to the next velocity.

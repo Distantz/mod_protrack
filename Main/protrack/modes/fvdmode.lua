@@ -21,7 +21,7 @@ local Vector3 = require("Vector3")
 local Quaternion = require("Quaternion")
 local Utils = require("protrack.utils")
 local Datastore = require("protrack.datastore")
-local logger = require("forgeutils.logger").Get("FvdMode")
+local logger = require("forgeutils.logger").Get("FvdMode", "INFO")
 local mathUtils = require("Common.mathUtils")
 
 --/ Main class definition
@@ -136,7 +136,17 @@ function FvdMode.StepPoint(lastPoint, userG, rollDelta, heartlineOffset, timeSte
 end
 
 function FvdMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
-    if not Datastore.HasData() or Vector3.Length(startT:GetPos() - Datastore.datapoints[#Datastore.datapoints].measurements[1].transform:GetPos()) > 0.02 then
+    if not Datastore.HasData() then
+        logger:Info("FVD SKIP!")
+        return originalMethod(startT, tData)
+    end
+
+    local dist = Vector3.Length(
+        startT:GetPos() -
+        Datastore.datapoints[#Datastore.datapoints].measurements[1].transform:GetPos()
+    )
+
+    if dist > 0.02 then
         return originalMethod(startT, tData)
     end
 
@@ -149,10 +159,13 @@ function FvdMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
 
     -- Get last point
     local point = FvdMode.GetPoint(
-        lastDatapoint.transform:GetPos() + lastDatapoint.transform:GetOr():GetU() * heartline,
-        lastDatapoint.transform:GetOr(),
-        lastDatapoint.speed,
-        lastDatapoint.speed,
+        (
+            lastDatapoint.measurements[1].transform:GetPos() +
+            lastDatapoint.measurements[1].transform:GetOr():GetU() * heartline
+        ),
+        lastDatapoint.measurements[1].transform:GetOr(),
+        lastDatapoint.originVelocity,
+        lastDatapoint.originVelocity,
         0
     )
 
