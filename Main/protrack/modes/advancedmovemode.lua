@@ -107,6 +107,7 @@ function AdvModeMode.SetTransformMode(isRotation)
             AdvModeMode.lastTransform:GetPos(),
             true,
             true,
+            ---@diagnostic disable-next-line: redundant-parameter
             true
         )
     else
