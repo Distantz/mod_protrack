@@ -67,13 +67,13 @@ function Utils.GetFirstCarData(rideID)
     local rideHolder = api.track.GetTrackHolder(rideID)
 
     local sTrainType = api.track.GetTrainType(rideHolder)
+
     local numTrainCars = api.track.GetNumCarsPerTrain(rideHolder)
+    local _, max = api.track.GetMinMaxCarsPerTrain(rideHolder)
+    numTrainCars = global.math.min(numTrainCars, max)
 
     local upperBound = getUpperBoundOfTrainSize(worldAPI, sTrainType, numTrainCars)
-    local lowerBound = getLowerBoundOfTrainSize(worldAPI, sTrainType, numTrainCars, upperBound)
-
-    local stationUsableArea = api.track.GetMinAllowedUseableStationLength(rideHolder)
-    local trainLength = lowerBound - stationUsableArea
+    local trainLength = getLowerBoundOfTrainSize(worldAPI, sTrainType, numTrainCars, upperBound)
 
     local trainID = tTrains[1]
     if trainID ~= nil and trainID ~= 0 then
@@ -126,8 +126,8 @@ function Utils.GetFirstCarData(rideID)
             end
             ::continue::
 
-            local moveBackward = (trainLength / 2.0) + Utils.CAM_OFFSET_FORWARD_ADJUST
-            local clampedTrainLength = global.math.max(trainLength, Utils.CAM_OFFSET_FORWARD_ADJUST * 2)
+            local moveBackward = (trainLength / 2.0)
+            local clampedTrainLength = trainLength
 
             trackTransforms[1]:MoveLocation(-moveBackward)
 
