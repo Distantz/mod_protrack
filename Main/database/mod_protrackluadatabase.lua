@@ -44,10 +44,6 @@ function LuaDB.Init()
     require("managers.mod_protrack").SetupHooks()
 end
 
-LuaDB.Shutdown = function()
-    api.ui2.UnmapResources("ProTrackUI")
-end
-
 LuaDB.tManagers = {
     ["Environments.CPTEnvironment"] = {
         ["managers.mod_protrack"] = {},
