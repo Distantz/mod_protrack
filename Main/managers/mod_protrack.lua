@@ -32,7 +32,7 @@ local Cam = require("protrack.cam")
 local Datastore = require("protrack.datastore")
 local FrictionHelper = require("database.frictionhelper")
 local InputEventHandler = require("Components.Input.InputEventHandler")
-local ForceOverlay = require("protrack.ui.forceoverlay")
+local UIWrapper = require("protrack.ui.protrackuiwrapper")
 local UnitConversion = require("Helpers.UnitConversion")
 
 local logger = require("forgeutils.logger").Get("ProTrackManager", "INFO")
@@ -40,12 +40,16 @@ local logger = require("forgeutils.logger").Get("ProTrackManager", "INFO")
 --/ Main class definition
 ---@class protrackManager
 local protrackManager = module(..., Mutators.Manager())
+
+---@type protrack.ui.ProtrackUIWrapper
+protrackManager.uiWrapper = nil
+
+-- Main variables
+
 protrackManager.simulationTime = 0
 ---@type TrackEditMode?
 protrackManager.trackEditMode = nil
 protrackManager.editingTrackEnd = false
-protrackManager.inCamera = false
-protrackManager.cameraIsHeartlineMode = false
 protrackManager.inputEventHandler = nil
 protrackManager.line = nil
 
@@ -53,25 +57,16 @@ protrackManager.line = nil
 protrackManager.inputManagerAPI = nil
 protrackManager.tWorldAPIs = nil
 
-protrackManager.gizmoInitCoroutine = nil
-protrackManager.overlayUI = nil
-
 ---@type FrictionValues
 protrackManager.frictionValues = nil
-
-protrackManager.context = nil
-protrackManager.trackMode = 0
 protrackManager.newTrackModeRequest = 0
-protrackManager.playingInDir = 0
 
 -- Gizmo
 
 ---@type DraggableWidgets
 protrackManager.draggableWidget = nil
-
 ---@type protrack.gizmo.TrackReferenceGizmo
 protrackManager.referencePointGizmo = nil
-
 ---@type protrack.gizmo.TrackPointGizmo[]
 protrackManager.followerGizmos = nil
 protrackManager.distances = {}
@@ -188,9 +183,6 @@ end
 -- work.
 --
 function protrackManager.Activate(self)
-    -- Activate datastore context, this is essential for UI integration
-    protrackManager.context = api.ui2.GetDataStoreContext("ProTrack")
-
     -- Our entry point simply calls inject on the submode override file:
     logger:Info("Completing spawns...")
     Cam.GetPreviewCameraEntity()
@@ -204,28 +196,27 @@ function protrackManager.Activate(self)
     SetVariableWithDatastore(false, "cameraIsHeartlineMode")
 
     Datastore.heartlineOffset = Vector3.Zero
-    ---@type ForceOverlay
-    protrackManager.overlayUI = ForceOverlay:new(
+    protrackManager.uiWrapper = UIWrapper:new(
         function()
             logger:Info("UI is setup and ready")
 
             -- Button listeners
 
-            protrackManager.overlayUI:AddListener_ReanchorRequested(
+            protrackManager.uiWrapper:AddListener_ReanchorRequested(
                 function()
                     self:NewTrainPosition()
                 end,
                 nil
             )
 
-            protrackManager.overlayUI:AddListener_ResimulateRequested(
+            protrackManager.uiWrapper:AddListener_ResimulateRequested(
                 function()
                     self:NewWalk()
                 end,
                 nil
             )
 
-            protrackManager.overlayUI:AddListener_ChangeCamModeRequested(
+            protrackManager.uiWrapper:AddListener_ChangeCamModeRequested(
                 function()
                     if not self.inCamera then
                         self:StartTrackCamera()
@@ -236,7 +227,7 @@ function protrackManager.Activate(self)
                 nil
             )
 
-            protrackManager.overlayUI:AddListener_PlayChanged(
+            protrackManager.uiWrapper:AddListener_PlayChanged(
                 function(newDir)
                     SetVariableWithDatastore("playingInDir", newDir)
                 end,
@@ -245,7 +236,7 @@ function protrackManager.Activate(self)
 
             -- Value listeners
 
-            protrackManager.overlayUI:AddListener_HeartlineValueChanged(
+            protrackManager.uiWrapper:AddListener_HeartlineValueChanged(
                 function(newVal)
                     Datastore.heartlineOffset = Vector3:new(0, newVal, 0)
                     self:NewWalk()
@@ -254,7 +245,7 @@ function protrackManager.Activate(self)
                 nil
             );
 
-            protrackManager.overlayUI:AddListener_VertGValueChanged(
+            protrackManager.uiWrapper:AddListener_VertGValueChanged(
                 function(newVal)
                     SetVariableOnObjectWithDatastore(FvdMode, "forceLockVertG", newVal)
                     self:SetTrackBuilderDirty()
@@ -262,7 +253,7 @@ function protrackManager.Activate(self)
                 nil
             );
 
-            protrackManager.overlayUI:AddListener_LatGValueChanged(
+            protrackManager.uiWrapper:AddListener_LatGValueChanged(
                 function(newVal)
                     SetVariableOnObjectWithDatastore(FvdMode, "forceLockLatG", newVal)
                     self:SetTrackBuilderDirty()
@@ -270,7 +261,7 @@ function protrackManager.Activate(self)
                 nil
             );
 
-            protrackManager.overlayUI:AddListener_TrackModeChanged(
+            protrackManager.uiWrapper:AddListener_TrackModeChanged(
                 function(newTrackMode)
                     -- Call is delayed like this to exit
                     -- the UI thread.
@@ -280,14 +271,14 @@ function protrackManager.Activate(self)
                 nil
             );
 
-            protrackManager.overlayUI:AddListener_HeartlineCamChanged(
+            protrackManager.uiWrapper:AddListener_HeartlineCamChanged(
                 function(heartlineCamMode)
                     SetVariableWithDatastore("cameraIsHeartlineMode", heartlineCamMode)
                 end,
                 nil
             );
 
-            protrackManager.overlayUI:AddListener_TimeChanged(
+            protrackManager.uiWrapper:AddListener_TimeChanged(
                 function(newTime)
                     self.simulationTime = newTime * Datastore.GetTimeLength()
                 end,
@@ -422,7 +413,7 @@ function protrackManager.StartEditMode(self, trackEditMode)
         end
     )
 
-    protrackManager.overlayUI:Show()
+    protrackManager.uiWrapper:Show()
 end
 
 local function shutdownGizmo(gizmo)
@@ -433,7 +424,7 @@ end
 
 function protrackManager.EndEditMode(self)
     self:ZeroData()
-    protrackManager.overlayUI:Hide()
+    protrackManager.uiWrapper:Hide()
 
     shutdownGizmo(self.draggableWidget)
     shutdownGizmo(self.referencePointGizmo)

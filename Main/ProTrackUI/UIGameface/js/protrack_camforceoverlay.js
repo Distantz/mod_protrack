@@ -82,12 +82,11 @@ class CamForceOverlay extends preact.Component {
         trackMode: 0,
         heartline: 0.0,
         forceLockVertG: 0.0,
-        forcelockLatG: 0.0,
+        forceLockLatG: 0.0,
 
         // Playhead data
         time: 0.0,
         playingInDir: 0,
-        time: 0.0
     };
     _helper = undefined;
     componentWillMount() {
@@ -371,12 +370,12 @@ class CamForceOverlay extends preact.Component {
 
     onTrackModeChange = (newTrackMode) => {
         this.setState({ trackMode: newTrackMode });
-        Engine.sendEvent("ProtrackTrackModeChanged", newTrackMode);
+        Engine.sendEvent("Protrack_TrackModeChanged", newTrackMode);
     }
 
     onHeartlineCameraChanged = (heartlineCamRequested) => {
         this.setState({ cameraIsHeartlineMode: heartlineCamRequested });
-        Engine.sendEvent("ProtrackHeartlineCamChanged", heartlineCamRequested);
+        Engine.sendEvent("Protrack_HeartlineCamChanged", heartlineCamRequested);
     }
 
     onTimeChanged = (value) => {
@@ -392,17 +391,17 @@ class CamForceOverlay extends preact.Component {
 
     onLatGChanged = (value) => {
         this.setState({ forceLockLatG: value });
-        Engine.sendEvent("ProtrackLatGChanged", value);
+        Engine.sendEvent("Protrack_LatGChanged", value);
     };
 
     onVertGChanged = (value) => {
         this.setState({ forceLockVertG: value });
-        Engine.sendEvent("ProtrackVertGChanged", value);
+        Engine.sendEvent("Protrack_VertGChanged", value);
     };
 
     onHeartlineChanged = (value) => {
         this.setState({ heartline: value });
-        Engine.sendEvent("ProtrackHeartlineChanged", value);
+        Engine.sendEvent("Protrack_HeartlineChanged", value);
     };
 
     // Engine visibility listeners
