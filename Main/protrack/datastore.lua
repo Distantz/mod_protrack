@@ -14,12 +14,15 @@ local Datastore = {}
 Datastore.tSimulationDelta = (1.0 / 30.0)
 
 ---@class TrackMeasurement
----@field g any
----@field transform any
----@field speed number
+---@field g table
+---@field transform table
 
----@type TrackMeasurement[]|nil
-Datastore.tDatapoints = nil
+---@class TrainMeasurement
+---@field originVelocity number The main (origin) velocity.
+---@field measurements TrackMeasurement[] Measurements.
+
+---@type TrainMeasurement[]|nil
+Datastore.datapoints = nil
 Datastore.trackEntityTransform = nil
 Datastore.trackWalkerOrigin = nil
 Datastore.heartlineOffset = Vector3.Zero
@@ -27,7 +30,7 @@ Datastore.heartlineOffset = Vector3.Zero
 --- Returns whether the datastore has any data for display
 ---@return boolean
 function Datastore.HasData()
-    return Datastore.tDatapoints ~= nil and #Datastore.tDatapoints >= 2
+    return Datastore.datapoints ~= nil and #Datastore.datapoints >= 2
 end
 
 --- Returns the timestamp for an index, which can be fractional.
@@ -57,14 +60,15 @@ end
 --- Samples a datapoint at a float index.
 --- Will interpolate between datapoints between float indexes.
 ---@param floatIndex number
+---@param offsetId integer The offset id.
 ---@return TrackMeasurement|nil
-function Datastore.SampleDatapointAtFloatIndex(floatIndex)
+function Datastore.SampleDatapointAtFloatIndex(floatIndex, offsetId)
     if not Datastore.HasData() then
         logger:Error("SampleDatapointAtTime requires datastore to have data! See Datastore.HasData().")
         return nil
     end
 
-    local numPts = #Datastore.tDatapoints
+    local numPts = #Datastore.datapoints
     local floor = global.math.floor(floatIndex)
     local fractionalLerp = floatIndex - floor
 
@@ -72,15 +76,31 @@ function Datastore.SampleDatapointAtFloatIndex(floatIndex)
     local toIdx = global.math.min(fromIdx + 1, numPts)
 
     -- Get points
-    local fromPt = Datastore.tDatapoints[fromIdx]
-    local toPt = Datastore.tDatapoints[toIdx]
+    local fromPt = Datastore.datapoints[fromIdx].measurements[offsetId]
+    local toPt = Datastore.datapoints[toIdx].measurements[offsetId]
 
     -- Construct new PT with slerping.
 
-    local lerpPos = mathUtils.Lerp(fromPt.transform:GetPos(), toPt.transform:GetPos(), fractionalLerp)
-    local lerpOr = Quaternion.SLerp(fromPt.transform:GetOr(), toPt.transform:GetOr(), fractionalLerp)
-    local lerpG = mathUtils.Lerp(fromPt.g, toPt.g, fractionalLerp)
-    local lerpSpeed = mathUtils.Lerp(fromPt.speed, toPt.speed, fractionalLerp)
+    local lerpPos = mathUtils.Lerp(
+        fromPt.transform:GetPos(),
+        toPt.transform:GetPos(),
+        fractionalLerp
+    )
+    local lerpOr = Quaternion.SLerp(
+        fromPt.transform:GetOr(),
+        toPt.transform:GetOr(),
+        fractionalLerp
+    )
+    local lerpG = mathUtils.Lerp(
+        fromPt.g,
+        toPt.g,
+        fractionalLerp
+    )
+    local lerpSpeed = mathUtils.Lerp(
+        Datastore.datapoints[fromIdx].originVelocity,
+        Datastore.datapoints[toIdx].originVelocity,
+        fractionalLerp
+    )
 
     return {
         g = lerpG,
@@ -92,21 +112,22 @@ end
 --- Samples a datapoint at a time.
 --- Will interpolate between datapoints between float indexes.
 ---@param time number
+---@param offsetId integer The offset id.
 ---@return TrackMeasurement|nil
-function Datastore.SampleDatapointAtTime(time)
-    return Datastore.SampleDatapointAtFloatIndex(Datastore.GetFloatIndexForTime(time))
+function Datastore.SampleDatapointAtTime(time, offsetId)
+    return Datastore.SampleDatapointAtFloatIndex(Datastore.GetFloatIndexForTime(time), offsetId)
 end
 
 ---Returns the total time length of the datastore
 ---@return number
 function Datastore.GetTimeLength()
-    return #Datastore.tDatapoints * Datastore.tSimulationDelta
+    return #Datastore.datapoints * Datastore.tSimulationDelta
 end
 
 ---Returns the number of datapoints in the datastore
 ---@return integer
 function Datastore.GetNumDatapoints()
-    return #Datastore.tDatapoints
+    return #Datastore.datapoints
 end
 
 return Datastore

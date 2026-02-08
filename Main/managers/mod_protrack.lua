@@ -72,8 +72,9 @@ protrackManager.draggableWidget = nil
 ---@type protrack.gizmo.TrackReferenceGizmo
 protrackManager.referencePointGizmo = nil
 
----@type protrack.gizmo.TrackPointGizmo
-protrackManager.mainTrackPointGizmo = nil
+---@type protrack.gizmo.TrackPointGizmo[]
+protrackManager.followerGizmos = nil
+protrackManager.distances = {}
 
 protrackManager.staticSelf = nil
 
@@ -304,7 +305,7 @@ function protrackManager.ZeroData(self)
     self.simulationTime = 0
     self.tWorldAPIs = nil
     self.inputManagerAPI = nil
-    Datastore.tDatapoints = nil
+    Datastore.datapoints = nil
 
     -- Datastore updates
     SetVariableWithDatastore("playingInDir", 0)
@@ -385,10 +386,18 @@ function protrackManager.StartEditMode(self, trackEditMode)
     logger:Info("Finished Draggable Widget")
 
     logger:Info("Spawning world-space gizmos")
-    self.mainTrackPointGizmo = TrackPointGizmo.new()
+
+    self.followerGizmos = {
+        [1] = TrackPointGizmo.new(),
+        [2] = TrackPointGizmo.new(),
+        [3] = TrackPointGizmo.new(),
+    }
+    for _, gizmo in global.ipairs(self.followerGizmos) do
+        gizmo:SetVisible(false)
+    end
+
     self.referencePointGizmo = TrackReferenceGizmo.new()
     self.referencePointGizmo:SetVisible(false)
-    self.mainTrackPointGizmo:SetVisible(false)
     logger:Info("Finished world-space gizmos")
 
     self.draggableWidget:BindButtonHandlers(
@@ -427,12 +436,15 @@ function protrackManager.EndEditMode(self)
     protrackManager.overlayUI:Hide()
 
     shutdownGizmo(self.draggableWidget)
-    shutdownGizmo(self.mainTrackPointGizmo)
     shutdownGizmo(self.referencePointGizmo)
 
     self.draggableWidget = nil
-    self.mainTrackPointGizmo = nil
-    self.referencePointGizmo = nil
+
+    -- Shut down all gizmos
+    for _, gizmo in global.ipairs(self.followerGizmos) do
+        shutdownGizmo(gizmo)
+    end
+    self.followerGizmos = nil
 end
 
 function protrackManager.SwitchTrackMode(self, newTrackMode)
@@ -464,9 +476,7 @@ function protrackManager.SetTrackBuilderDirty(self)
 end
 
 function protrackManager.NewTrainPosition(self)
-    logger:Info("NewTrainPosition()")
     local trackEntity = self.trackEditMode.tActiveData:GetTrackEntity()
-    logger:Info("trackEntity")
 
     -- Early exit
     Datastore.trackWalkerOrigin = Utils.GetFirstCarData(trackEntity)
@@ -486,12 +496,15 @@ end
 
 function protrackManager.ClearWalkerOrigin(self)
     Datastore.trackWalkerOrigin = nil
+    self.distances = nil
     self.line:ClearPoints()
     if self.referencePointGizmo ~= nil then
         self.referencePointGizmo:SetVisible(false)
     end
-    if self.mainTrackPointGizmo ~= nil then
-        self.mainTrackPointGizmo:SetVisible(false)
+    if self.followerGizmos ~= nil then
+        for _, gizmo in global.ipairs(self.followerGizmos) do
+            gizmo:SetVisible(false)
+        end
     end
     self:StopTrackCamera()
 
@@ -500,17 +513,22 @@ function protrackManager.ClearWalkerOrigin(self)
 end
 
 function protrackManager.NewWalk(self)
-    logger:Info("NewWalk()")
-    Datastore.tDatapoints = nil
-
+    Datastore.datapoints = nil
     if not Utils.IsTrackOriginValid(Datastore.trackWalkerOrigin) then
         logger:Info("Invalid!")
         self:ClearWalkerOrigin()
         return
     end
 
-    Datastore.tDatapoints = Utils.WalkTrack(
+    local halfLength = Datastore.trackWalkerOrigin.trainLength / 2.0
+    self.distances = {
+        [1] = halfLength,
+        [2] = -halfLength
+    }
+
+    Datastore.datapoints = Utils.WalkTrack(
         Datastore.trackWalkerOrigin,
+        self.distances,
         self.frictionValues,
         Datastore.heartlineOffset,
         Datastore.tSimulationDelta
@@ -524,12 +542,13 @@ function protrackManager.NewWalk(self)
         return
     end
 
+    logger:Info("Line?")
     -- Set points
     local tPoints = {}
-    for i, datapoint in global.ipairs(Datastore.tDatapoints) do
+    for i, datapoint in global.ipairs(Datastore.datapoints) do
         tPoints[i] = Datastore.trackEntityTransform:ToWorldPos(
-            datapoint.transform:GetPos() +
-            datapoint.transform:ToWorldDir(Datastore.heartlineOffset)
+            datapoint.measurements[1].transform:GetPos() +
+            datapoint.measurements[1].transform:ToWorldDir(Datastore.heartlineOffset)
         )
     end
     self.line:SetPoints(tPoints)
@@ -541,28 +560,29 @@ function protrackManager.NewWalk(self)
     end
 
     -- Turn it on
-    logger:Info("SetVisible()")
-    self.mainTrackPointGizmo:SetVisible(true)
+    for _, gizmo in global.ipairs(self.followerGizmos) do
+        gizmo:SetVisible(true)
+    end
     self.referencePointGizmo:SetVisible(not self.inCamera)
 
-    logger:Info("SetRefPointTransform()")
     self.referencePointGizmo:SetRefPointTransform(
         Datastore.trackEntityTransform:ToWorld(Utils.TrackTransformToTransformQ(Datastore.trackWalkerOrigin.transform))
     )
-    logger:Info("SetEndPointTransform()")
     self.referencePointGizmo:SetEndPointTransform(
-        Datastore.trackEntityTransform:ToWorld(Datastore.tDatapoints[#Datastore.tDatapoints].transform)
+        Datastore.trackEntityTransform:ToWorld(Datastore.datapoints[#Datastore.datapoints].measurements[1].transform)
     )
 end
 
 function protrackManager.StartTrackCamera(self)
-    if Datastore.tDatapoints == nil then
+    if Datastore.datapoints == nil then
         return
     end
 
     if not self.inCamera then
         self.line:ClearPoints()
-        self.mainTrackPointGizmo:SetVisible(false)
+        for _, gizmo in global.ipairs(self.followerGizmos) do
+            gizmo:SetVisible(false)
+        end
         Cam.StartRideCamera()
         self.inCamera = true
     end
@@ -573,7 +593,9 @@ end
 function protrackManager.StopTrackCamera(self)
     if self.inCamera then
         self.line:DrawPoints()
-        self.mainTrackPointGizmo:SetVisible(true)
+        for _, gizmo in global.ipairs(self.followerGizmos) do
+            gizmo:SetVisible(true)
+        end
         self.referencePointGizmo:SetVisible(true)
         Cam.StopRideCamera()
         self.inCamera = false
@@ -655,41 +677,54 @@ function protrackManager.Advance(self, deltaTime)
         -- Set datastore
         api.ui2.SetDataStoreElement(protrackManager.context, "time", self.simulationTime / Datastore.GetTimeLength())
 
-        local pt = Datastore.SampleDatapointAtTime(self.simulationTime)
-        if pt == nil then
-            return
+        --- Helper func
+        ---@param index integer The gizmo index
+        ---@param gizmo protrack.gizmo.TrackPointGizmo The gizmo
+        local function setGizmoToPoint(index, gizmo)
+            local pt = Datastore.SampleDatapointAtTime(self.simulationTime, index)
+            if pt == nil then
+                return
+            end
+
+            local wsTrans = Datastore.trackEntityTransform:ToWorld(pt.transform)
+            local wsCamOffset = wsTrans:ToWorldDir(Datastore.trackWalkerOrigin.camOffset)
+            local wsHeartlineOffset = wsTrans:ToWorldDir(Datastore.heartlineOffset)
+
+            gizmo:SetTransform(
+                wsTrans:WithPos(wsTrans:GetPos() + wsHeartlineOffset)
+            )
+            gizmo:SetGForce(
+                pt.g
+            )
+
+            if index ~= 1 then
+                return
+            end
+
+            -- Pick between both heartline and standard viewing
+            local wsCamOffsetUsed = wsCamOffset
+            if self.cameraIsHeartlineMode then
+                wsCamOffsetUsed = wsHeartlineOffset
+            end
+
+            ---@diagnostic disable-next-line: param-type-mismatch
+            api.transform.SetPosition(Cam.PreviewCameraEntity, wsTrans:GetPos() + wsCamOffsetUsed)
+            api.transform.SetOrientation(Cam.PreviewCameraEntity, wsTrans:GetOr())
+
+            local indexDatapoint = Datastore.GetFloorIndexForTime(self.simulationTime)
+            local numDatapoints = Datastore.GetNumDatapoints()
+
+            api.ui2.SetDataStoreElement(protrackManager.context, "currKeyframe", indexDatapoint)
+            api.ui2.SetDataStoreElement(protrackManager.context, "keyframeCount", numDatapoints)
+            api.ui2.SetDataStoreElement(protrackManager.context, "vertGForce", pt.g:GetY())
+            api.ui2.SetDataStoreElement(protrackManager.context, "latGForce", pt.g:GetX())
+            api.ui2.SetDataStoreElement(protrackManager.context, "speed",
+                UnitConversion.Speed_ToUserPref(pt.speed, UnitConversion.Speed_MS))
         end
 
-        local wsTrans = Datastore.trackEntityTransform:ToWorld(pt.transform)
-        local wsCamOffset = wsTrans:ToWorldDir(Datastore.trackWalkerOrigin.camOffset)
-        local wsHeartlineOffset = wsTrans:ToWorldDir(Datastore.heartlineOffset)
-
-        -- Pick between both heartline and standard viewing
-        local wsCamOffsetUsed = wsCamOffset
-        if self.cameraIsHeartlineMode then
-            wsCamOffsetUsed = wsHeartlineOffset
+        for i, gizmo in global.ipairs(self.followerGizmos) do
+            setGizmoToPoint(i, gizmo)
         end
-
-        ---@diagnostic disable-next-line: param-type-mismatch
-        api.transform.SetPosition(Cam.PreviewCameraEntity, wsTrans:GetPos() + wsCamOffsetUsed)
-        api.transform.SetOrientation(Cam.PreviewCameraEntity, wsTrans:GetOr())
-
-        self.mainTrackPointGizmo:SetTransform(
-            wsTrans:WithPos(wsTrans:GetPos() + wsHeartlineOffset)
-        )
-        self.mainTrackPointGizmo:SetGForce(
-            pt.g
-        )
-
-        local indexDatapoint = Datastore.GetFloorIndexForTime(self.simulationTime)
-        local numDatapoints = Datastore.GetNumDatapoints()
-
-        api.ui2.SetDataStoreElement(protrackManager.context, "currKeyframe", indexDatapoint)
-        api.ui2.SetDataStoreElement(protrackManager.context, "keyframeCount", numDatapoints)
-        api.ui2.SetDataStoreElement(protrackManager.context, "vertGForce", pt.g:GetY())
-        api.ui2.SetDataStoreElement(protrackManager.context, "latGForce", pt.g:GetX())
-        api.ui2.SetDataStoreElement(protrackManager.context, "speed",
-            UnitConversion.Speed_ToUserPref(pt.speed, UnitConversion.Speed_MS))
     end
 end
 
