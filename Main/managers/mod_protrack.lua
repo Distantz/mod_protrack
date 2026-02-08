@@ -59,7 +59,6 @@ protrackManager.tWorldAPIs = nil
 
 ---@type FrictionValues
 protrackManager.frictionValues = nil
-protrackManager.newTrackModeRequest = 0
 
 -- Gizmo
 
@@ -77,21 +76,6 @@ local NORMAL_TRACKMODE = 0
 local FVD_TRACKMODE = 1
 local ADVMOVE_TRACKMODE = 2
 
----Sets a value on an object, while also setting to the datastore
----@param name any
----@param value any
-local function SetVariableOnObjectWithDatastore(object, name, value)
-    object[name] = value
-    api.ui2.SetDataStoreElement(protrackManager.context, name, value)
-end
-
----Sets a value, while also setting to the datastore
----@param name any
----@param value any
-local function SetVariableWithDatastore(name, value)
-    SetVariableOnObjectWithDatastore(protrackManager, name, value)
-end
-
 function protrackManager.SetupHooks()
     logger:Info("Setup FU hooks")
     HookManager:AddHook(
@@ -103,10 +87,10 @@ function protrackManager.SetupHooks()
                 return
             end
 
-            if (protrackManager.staticSelf.trackMode == FVD_TRACKMODE) and Datastore.HasData() then -- forcelock, remove 1 and 3
+            if (protrackManager.staticSelf.uiWrapper:Get_TrackMode() == FVD_TRACKMODE) and Datastore.HasData() then -- forcelock, remove 1 and 3
                 _tItems[1] = {}
                 _tItems[3] = {}
-            elseif (protrackManager.staticSelf.trackMode == ADVMOVE_TRACKMODE) then -- Advanced widget, remove all
+            elseif (protrackManager.staticSelf.uiWrapper:Get_TrackMode() == ADVMOVE_TRACKMODE) then -- Advanced widget, remove all
                 _tItems[1] = {}
                 _tItems[2] = {}
                 _tItems[3] = {}
@@ -121,9 +105,9 @@ function protrackManager.SetupHooks()
         "Editors.Track.TrackEditValues",
         "StaticBuildEndPoint",
         function(originalMethod, startT, tData)
-            if (protrackManager.staticSelf.trackMode == FVD_TRACKMODE) then
+            if (protrackManager.staticSelf.uiWrapper:Get_TrackMode() == FVD_TRACKMODE) then
                 return FvdMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
-            elseif (protrackManager.staticSelf.trackMode == ADVMOVE_TRACKMODE) then
+            elseif (protrackManager.staticSelf.uiWrapper:Get_TrackMode() == ADVMOVE_TRACKMODE) then
                 return AdvMoveMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
             end
             return originalMethod(startT, tData)
@@ -193,7 +177,6 @@ function protrackManager.Activate(self)
     FvdMode.line = line:new()
 
     logger:Info("Initialising UI")
-    SetVariableWithDatastore(false, "cameraIsHeartlineMode")
 
     Datastore.heartlineOffset = Vector3.Zero
     protrackManager.uiWrapper = UIWrapper:new(
@@ -218,7 +201,7 @@ function protrackManager.Activate(self)
 
             protrackManager.uiWrapper:AddListener_ChangeCamModeRequested(
                 function()
-                    if not self.inCamera then
+                    if not protrackManager.uiWrapper:Get_InCamera() then
                         self:StartTrackCamera()
                     else
                         self:StopTrackCamera()
@@ -229,7 +212,7 @@ function protrackManager.Activate(self)
 
             protrackManager.uiWrapper:AddListener_PlayChanged(
                 function(newDir)
-                    SetVariableWithDatastore("playingInDir", newDir)
+                    protrackManager.uiWrapper:Set_PlayingInDir(newDir)
                 end,
                 nil
             )
@@ -238,6 +221,7 @@ function protrackManager.Activate(self)
 
             protrackManager.uiWrapper:AddListener_HeartlineValueChanged(
                 function(newVal)
+                    protrackManager.uiWrapper:Set_Heartline(newVal)
                     Datastore.heartlineOffset = Vector3:new(0, newVal, 0)
                     self:NewWalk()
                     self:SetTrackBuilderDirty()
@@ -247,7 +231,7 @@ function protrackManager.Activate(self)
 
             protrackManager.uiWrapper:AddListener_VertGValueChanged(
                 function(newVal)
-                    SetVariableOnObjectWithDatastore(FvdMode, "forceLockVertG", newVal)
+                    protrackManager.uiWrapper:Set_ForceLockVertG(newVal)
                     self:SetTrackBuilderDirty()
                 end,
                 nil
@@ -255,7 +239,7 @@ function protrackManager.Activate(self)
 
             protrackManager.uiWrapper:AddListener_LatGValueChanged(
                 function(newVal)
-                    SetVariableOnObjectWithDatastore(FvdMode, "forceLockLatG", newVal)
+                    protrackManager.uiWrapper:Set_ForceLockLatG(newVal)
                     self:SetTrackBuilderDirty()
                 end,
                 nil
@@ -265,15 +249,14 @@ function protrackManager.Activate(self)
                 function(newTrackMode)
                     -- Call is delayed like this to exit
                     -- the UI thread.
-                    self.newTrackModeRequest = newTrackMode
-                    -- self:SwitchTrackMode(newTrackMode)
+                    self:SwitchTrackMode(newTrackMode)
                 end,
                 nil
             );
 
             protrackManager.uiWrapper:AddListener_HeartlineCamChanged(
                 function(heartlineCamMode)
-                    SetVariableWithDatastore("cameraIsHeartlineMode", heartlineCamMode)
+                    protrackManager.uiWrapper:Set_CameraIsHeartlineMode(heartlineCamMode)
                 end,
                 nil
             );
@@ -290,8 +273,6 @@ end
 
 function protrackManager.ZeroData(self)
     self:ClearWalkerOrigin()
-    self.newTrackModeRequest = 0
-    self.trackEditMode = nil
     self.editingTrackEnd = false
     self.simulationTime = 0
     self.tWorldAPIs = nil
@@ -299,10 +280,10 @@ function protrackManager.ZeroData(self)
     Datastore.datapoints = nil
 
     -- Datastore updates
-    SetVariableWithDatastore("playingInDir", 0)
-    SetVariableWithDatastore("trackMode", 0)
-    SetVariableOnObjectWithDatastore(FvdMode, "forceLockVertG", 1)
-    SetVariableOnObjectWithDatastore(FvdMode, "forceLockLatG", 0)
+    protrackManager.uiWrapper:Set_PlayingInDir(0)
+    protrackManager.uiWrapper:Set_TrackMode(0)
+    protrackManager.uiWrapper:Set_ForceLockVertG(1)
+    protrackManager.uiWrapper:Set_ForceLockLatG(0)
 end
 
 function protrackManager.StartEditMode(self, trackEditMode)
@@ -311,6 +292,7 @@ function protrackManager.StartEditMode(self, trackEditMode)
     -- Reset data
     logger:Info("Resetting data")
     self:ZeroData()
+    logger:Info("Done")
 
     ---@type TrackEditMode
     self.trackEditMode = trackEditMode
@@ -339,7 +321,7 @@ function protrackManager.StartEditMode(self, trackEditMode)
     self.inputEventHandler:AddKeyPressedEvent(
         "AdvancedMove",
         function()
-            if self.trackMode == ADVMOVE_TRACKMODE and self.editingTrackEnd then
+            if self.uiWrapper:Get_TrackMode() == ADVMOVE_TRACKMODE and self.editingTrackEnd then
                 AdvMoveMode.SwitchTransformMode()
             else
                 self:NewWalk()
@@ -353,7 +335,7 @@ function protrackManager.StartEditMode(self, trackEditMode)
         "ScaleObject",
         function()
             logger:Info("Toggle ride camera!")
-            if not self.inCamera then
+            if not protrackManager.uiWrapper:Get_InCamera() then
                 self:StartTrackCamera()
             else
                 self:StopTrackCamera()
@@ -366,7 +348,9 @@ function protrackManager.StartEditMode(self, trackEditMode)
         "ToggleAlignToSurface",
         function()
             logger:Info("Toggle camera mode!")
-            SetVariableWithDatastore("cameraIsHeartlineMode", not self.cameraIsHeartlineMode)
+            protrackManager.uiWrapper:Set_CameraIsHeartlineMode(
+                not protrackManager.uiWrapper:Get_CameraIsHeartlineMode()
+            )
             return true
         end
     )
@@ -412,8 +396,7 @@ function protrackManager.StartEditMode(self, trackEditMode)
             protrackManager.staticSelf:SetTrackBuilderDirty()
         end
     )
-
-    protrackManager.uiWrapper:Show()
+    protrackManager.uiWrapper:TriggerShow()
 end
 
 local function shutdownGizmo(gizmo)
@@ -424,7 +407,7 @@ end
 
 function protrackManager.EndEditMode(self)
     self:ZeroData()
-    protrackManager.uiWrapper:Hide()
+    protrackManager.uiWrapper:TriggerHide()
 
     shutdownGizmo(self.draggableWidget)
     shutdownGizmo(self.referencePointGizmo)
@@ -440,21 +423,25 @@ end
 
 function protrackManager.SwitchTrackMode(self, newTrackMode)
     self:EndTrackEdit()
-    SetVariableWithDatastore("trackMode", newTrackMode)
+    protrackManager.uiWrapper:Set_TrackMode(newTrackMode)
     self:StartTrackEdit()
     self:SetTrackBuilderDirty()
 end
 
 function protrackManager.StartTrackEdit(self)
-    if self.trackMode == ADVMOVE_TRACKMODE then
+    local trackMode = self.uiWrapper:Get_TrackMode()
+    if trackMode == FVD_TRACKMODE then
+        FvdMode.StartEdit(self.uiWrapper)
+    elseif trackMode == ADVMOVE_TRACKMODE then
         AdvMoveMode.StartEdit(self.draggableWidget, Datastore.trackEntityTransform)
     end
 end
 
 function protrackManager.EndTrackEdit(self)
-    if self.trackMode == FVD_TRACKMODE then
+    local trackMode = self.uiWrapper:Get_TrackMode()
+    if trackMode == FVD_TRACKMODE then
         FvdMode.EndEdit()
-    elseif self.trackMode == ADVMOVE_TRACKMODE then
+    elseif trackMode == ADVMOVE_TRACKMODE then
         AdvMoveMode.EndEdit()
     end
 end
@@ -498,9 +485,6 @@ function protrackManager.ClearWalkerOrigin(self)
         end
     end
     self:StopTrackCamera()
-
-    -- Datastore
-    api.ui2.SetDataStoreElement(protrackManager.context, "hasData", false)
 end
 
 function protrackManager.NewWalk(self)
@@ -544,7 +528,7 @@ function protrackManager.NewWalk(self)
     end
     self.line:SetPoints(tPoints)
 
-    if self.inCamera then
+    if protrackManager.uiWrapper:Get_InCamera() then
         self.line:ClearPoints()
     else
         self.line:DrawPoints()
@@ -554,7 +538,7 @@ function protrackManager.NewWalk(self)
     for _, gizmo in global.ipairs(self.followerGizmos) do
         gizmo:SetVisible(true)
     end
-    self.referencePointGizmo:SetVisible(not self.inCamera)
+    self.referencePointGizmo:SetVisible(not protrackManager.uiWrapper:Get_InCamera())
 
     self.referencePointGizmo:SetRefPointTransform(
         Datastore.trackEntityTransform:ToWorld(Utils.TrackTransformToTransformQ(Datastore.trackWalkerOrigin.transform))
@@ -569,30 +553,26 @@ function protrackManager.StartTrackCamera(self)
         return
     end
 
-    if not self.inCamera then
+    if not protrackManager.uiWrapper:Get_InCamera() then
         self.line:ClearPoints()
         for _, gizmo in global.ipairs(self.followerGizmos) do
             gizmo:SetVisible(false)
         end
         Cam.StartRideCamera()
-        self.inCamera = true
+        protrackManager.uiWrapper:Set_InCamera(true)
     end
-
-    api.ui2.SetDataStoreElement(protrackManager.context, "inCamera", self.inCamera)
 end
 
 function protrackManager.StopTrackCamera(self)
-    if self.inCamera then
+    if protrackManager.uiWrapper:Get_InCamera() then
         self.line:DrawPoints()
         for _, gizmo in global.ipairs(self.followerGizmos) do
             gizmo:SetVisible(true)
         end
         self.referencePointGizmo:SetVisible(true)
         Cam.StopRideCamera()
-        self.inCamera = false
+        self.uiWrapper:Set_InCamera(false)
     end
-
-    api.ui2.SetDataStoreElement(protrackManager.context, "inCamera", self.inCamera)
 end
 
 function protrackManager.Advance(self, deltaTime)
@@ -601,12 +581,6 @@ function protrackManager.Advance(self, deltaTime)
     end
 
     self.inputEventHandler:CheckEvents()
-
-    -- Check if UI thread has demanded that we switch track modes
-    if (self.newTrackModeRequest ~= self.trackMode) then
-        self:SwitchTrackMode(self.newTrackModeRequest)
-        self.newTrackModeRequest = self.trackMode
-    end
 
     -- Check selection
     local newEndEdit = self.trackEditMode.tActiveData:IsAddingAfterSelection()
@@ -620,7 +594,7 @@ function protrackManager.Advance(self, deltaTime)
     end
 
     -- If we are in advanced move mode, tick it.
-    if (self.trackMode == ADVMOVE_TRACKMODE) then
+    if (self.uiWrapper:Get_TrackMode() == ADVMOVE_TRACKMODE) then
         local tMouseInput = (self.trackEditMode.inputManager):GetMouseInput()
         local tGamepadAxisInput = (self.trackEditMode.inputManager):GetGamepadAxisData()
         if AdvMoveMode.Advance(deltaTime, tMouseInput, tGamepadAxisInput) then
@@ -644,14 +618,14 @@ function protrackManager.Advance(self, deltaTime)
 
     -- If keybinds are not held, respect the playingDir
     if (direction == 0) then
-        direction = self.playingInDir
+        direction = self.uiWrapper:Get_PlayingInDir()
     end
 
     -- Set gizmo visiblity
     --Gizmo.Visible(not self.inCamera)
 
     local hasData = Datastore.HasData()
-    api.ui2.SetDataStoreElement(protrackManager.context, "hasData", hasData)
+    api.ui2.SetDataStoreElement(protrackManager.uiWrapper.mainContext, "hasData", hasData)
 
     if hasData then
         if Datastore.trackWalkerOrigin == nil or Datastore.trackEntityTransform == nil then
@@ -666,7 +640,8 @@ function protrackManager.Advance(self, deltaTime)
         self.simulationTime = mathUtils.Clamp(self.simulationTime, 0, Datastore.GetTimeLength())
 
         -- Set datastore
-        api.ui2.SetDataStoreElement(protrackManager.context, "time", self.simulationTime / Datastore.GetTimeLength())
+        api.ui2.SetDataStoreElement(protrackManager.uiWrapper.mainContext, "time",
+            self.simulationTime / Datastore.GetTimeLength())
 
         --- Helper func
         ---@param index integer The gizmo index
@@ -694,7 +669,7 @@ function protrackManager.Advance(self, deltaTime)
 
             -- Pick between both heartline and standard viewing
             local wsCamOffsetUsed = wsCamOffset
-            if self.cameraIsHeartlineMode then
+            if protrackManager.uiWrapper:Get_CameraIsHeartlineMode() then
                 wsCamOffsetUsed = wsHeartlineOffset
             end
 
@@ -705,11 +680,11 @@ function protrackManager.Advance(self, deltaTime)
             local indexDatapoint = Datastore.GetFloorIndexForTime(self.simulationTime)
             local numDatapoints = Datastore.GetNumDatapoints()
 
-            api.ui2.SetDataStoreElement(protrackManager.context, "currKeyframe", indexDatapoint)
-            api.ui2.SetDataStoreElement(protrackManager.context, "keyframeCount", numDatapoints)
-            api.ui2.SetDataStoreElement(protrackManager.context, "vertGForce", pt.g:GetY())
-            api.ui2.SetDataStoreElement(protrackManager.context, "latGForce", pt.g:GetX())
-            api.ui2.SetDataStoreElement(protrackManager.context, "speed",
+            api.ui2.SetDataStoreElement(protrackManager.uiWrapper.mainContext, "currKeyframe", indexDatapoint)
+            api.ui2.SetDataStoreElement(protrackManager.uiWrapper.mainContext, "keyframeCount", numDatapoints)
+            api.ui2.SetDataStoreElement(protrackManager.uiWrapper.mainContext, "vertGForce", pt.g:GetY())
+            api.ui2.SetDataStoreElement(protrackManager.uiWrapper.mainContext, "latGForce", pt.g:GetX())
+            api.ui2.SetDataStoreElement(protrackManager.uiWrapper.mainContext, "speed",
                 UnitConversion.Speed_ToUserPref(pt.speed, UnitConversion.Speed_MS))
         end
 

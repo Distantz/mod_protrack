@@ -27,11 +27,18 @@ local mathUtils = require("Common.mathUtils")
 --/ Main class definition
 ---@class FvdMode
 local FvdMode = {}
-FvdMode.forceLockVertG = 0
-FvdMode.forceLockLatG = 0
+
+---@type protrack.ui.ProtrackUIWrapper
+FvdMode.uiWrapper = nil
 FvdMode.line = nil
 FvdMode.g = 9.81
 FvdMode.gravity = Vector3:new(0, -1, 0)
+
+--- Inits the edit mode
+---@param uiWrapper protrack.ui.ProtrackUIWrapper
+function FvdMode.StartEdit(uiWrapper)
+    FvdMode.uiWrapper = uiWrapper
+end
 
 ---@class FvdPoint
 ---@field pos any Coaster-space position.
@@ -150,7 +157,7 @@ function FvdMode.StaticBuildEndPoint_Hook(originalMethod, startT, tData)
         return originalMethod(startT, tData)
     end
 
-    local userAccel = Vector3:new(FvdMode.forceLockLatG, FvdMode.forceLockVertG, 0) -- local-space target accel
+    local userAccel = Vector3:new(FvdMode.uiWrapper:Get_ForceLockLatG(), FvdMode.uiWrapper:Get_ForceLockVertG(), 0) -- local-space target accel
 
     logger:Info("Using acceleration: " .. global.tostring(userAccel))
 

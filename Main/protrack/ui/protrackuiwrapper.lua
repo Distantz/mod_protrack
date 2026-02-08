@@ -13,21 +13,22 @@ local logger            = require("forgeutils.logger").Get("ProTrackForceOverlay
 ---@class protrack.ui.ProtrackUIWrapper : GamefaceUIWrapper
 ---@field mainContext table The main protrack datastore table
 local ForceOverlay      = module(..., Object.subclass(GamefaceUIWrapper))
+local constructor       = ForceOverlay.new
 
 function ForceOverlay:new(_fnOnReadyCallback)
 	---@type protrack.ui.ProtrackUIWrapper
-	local self = ForceOverlay.new(ForceOverlay)
-	self.mainDatastore = api.ui2.GetDataStoreContext("ProTrack")
+	local slf = constructor(ForceOverlay)
+	slf.mainContext = api.ui2.GetDataStoreContext("ProTrack")
 
 	-- Set defaults
-	self.cameraIsHeartlineMode = false
-	self.inCamera = false
-	self.trackMode = 0
-	self.heartline = 0.0
-	self.forceLockVertG = 0.0
-	self.forceLockLatG = 0.0
-	self.playingInDir = 0
-	self.time = 0
+	slf.cameraIsHeartlineMode = false
+	slf.inCamera = false
+	slf.trackMode = 0
+	slf.heartline = 0.0
+	slf.forceLockVertG = 0.0
+	slf.forceLockLatG = 0.0
+	slf.playingInDir = 0
+	slf.time = 0
 
 	local tInitSettings = {
 		sViewName = "ProTrackUI",
@@ -39,8 +40,8 @@ function ForceOverlay:new(_fnOnReadyCallback)
 		nViewWidth = 1080,
 		bRegisterWrapper = true
 	}
-	self:Init(tInitSettings)
-	return self
+	slf:Init(tInitSettings)
+	return slf
 end
 
 --#region Property getters/setters
@@ -48,7 +49,7 @@ end
 ---@param value boolean
 function ForceOverlay:Set_CameraIsHeartlineMode(value)
 	self.cameraIsHeartlineMode = value
-	api.ui2.SetDataStoreElement(self.cameraIsHeartlineMode, "cameraIsHeartlineMode", value)
+	api.ui2.SetDataStoreElement(self.mainContext, "cameraIsHeartlineMode", value)
 end
 
 ---@return boolean
@@ -59,7 +60,7 @@ end
 ---@param value boolean
 function ForceOverlay:Set_InCamera(value)
 	self.inCamera = value
-	api.ui2.SetDataStoreElement(self.inCamera, "inCamera", value)
+	api.ui2.SetDataStoreElement(self.mainContext, "inCamera", value)
 end
 
 ---@return boolean
@@ -70,7 +71,7 @@ end
 ---@param value integer
 function ForceOverlay:Set_TrackMode(value)
 	self.trackMode = value
-	api.ui2.SetDataStoreElement(self.trackMode, "trackMode", value)
+	api.ui2.SetDataStoreElement(self.mainContext, "trackMode", value)
 end
 
 ---@return integer
@@ -81,7 +82,7 @@ end
 ---@param value number
 function ForceOverlay:Set_Heartline(value)
 	self.heartline = value
-	api.ui2.SetDataStoreElement(self.heartline, "heartline", value)
+	api.ui2.SetDataStoreElement(self.mainContext, "heartline", value)
 end
 
 ---@return number
@@ -92,7 +93,7 @@ end
 ---@param value number
 function ForceOverlay:Set_ForceLockVertG(value)
 	self.forceLockVertG = value
-	api.ui2.SetDataStoreElement(self.forceLockVertG, "forceLockVertG", value)
+	api.ui2.SetDataStoreElement(self.mainContext, "forceLockVertG", value)
 end
 
 ---@return number
@@ -103,7 +104,7 @@ end
 ---@param value number
 function ForceOverlay:Set_ForceLockLatG(value)
 	self.forceLockLatG = value
-	api.ui2.SetDataStoreElement(self.forceLockLatG, "forceLockLatG", value)
+	api.ui2.SetDataStoreElement(self.mainContext, "forceLockLatG", value)
 end
 
 ---@return number
@@ -114,7 +115,7 @@ end
 ---@param value integer
 function ForceOverlay:Set_PlayingInDir(value)
 	self.playingInDir = value
-	api.ui2.SetDataStoreElement(self.playingInDir, "playingInDir", value)
+	api.ui2.SetDataStoreElement(self.mainContext, "playingInDir", value)
 end
 
 ---@return integer
@@ -125,7 +126,7 @@ end
 ---@param value integer
 function ForceOverlay:Set_Time(value)
 	self.time = value
-	api.ui2.SetDataStoreElement(self.time, "time", value)
+	api.ui2.SetDataStoreElement(self.mainContext, "time", value)
 end
 
 ---@return integer
