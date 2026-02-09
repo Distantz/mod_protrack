@@ -7,12 +7,13 @@ local require           = global.require
 ---@diagnostic disable-next-line: deprecated
 local module            = global.module
 local Object            = require("Common.object")
-local GamefaceUIWrapper = require("UI.GamefaceUIWrapper")
+local gamefaceUIWrapper = require("UI.GamefaceUIWrapper")
 local table             = require("Common.tableplus")
-local logger            = require("forgeutils.logger").Get("ProTrackForceOverlay")
+local unitConversion    = require("Helpers.UnitConversion")
+local logger            = require("forgeutils.logger").Get("ProTrackForceOverlay", "INFO")
 ---@class protrack.ui.ProtrackUIWrapper : GamefaceUIWrapper
 ---@field mainContext table The main protrack datastore table
-local ForceOverlay      = module(..., Object.subclass(GamefaceUIWrapper))
+local ForceOverlay      = module(..., Object.subclass(gamefaceUIWrapper))
 local constructor       = ForceOverlay.new
 
 function ForceOverlay:new(_fnOnReadyCallback)
@@ -45,6 +46,77 @@ function ForceOverlay:new(_fnOnReadyCallback)
 end
 
 --#region Property getters/setters
+
+function ForceOverlay:ClearAllTrackData()
+	---@diagnostic disable-next-line: redundant-parameter
+	local context = api.ui2.GetDataStoreContext("ProTrack", "trainData", "trackData")
+	api.ui2.DeleteDataStoreContext(context)
+end
+
+function ForceOverlay:ClearAllTrainData()
+	local context = api.ui2.GetDataStoreContext("ProTrack", "trainData")
+
+	---@diagnostic disable-next-line: redundant-parameter
+	api.ui2.DeleteDataStoreContext(context)
+end
+
+--- Sets track data on the force overlay
+---@param trainDataSnapshot TrainMeasurement
+---@param currentKeyframe integer
+---@param maxKeyframe integer
+---@param trackEntityTransform table
+---@param heartlineOffset table
+function ForceOverlay:SetTrainData(
+	trainDataSnapshot,
+	currentKeyframe,
+	maxKeyframe,
+	trackEntityTransform,
+	heartlineOffset
+)
+	self:ClearAllTrackData()
+
+	local data = {
+		speed = unitConversion.Speed_ToUserPref(trainDataSnapshot.originVelocity, unitConversion.Speed_MS),
+		currentKeyframe = currentKeyframe,
+		maxKeyframe = maxKeyframe,
+	}
+
+	api.ui2.CreateDataStoreContext(data, "ProTrack", "trainData")
+
+	for index, trackDataSnapshot in global.ipairs(trainDataSnapshot.measurements) do
+		self:SetTrackData(index, trackDataSnapshot, trackEntityTransform, heartlineOffset)
+	end
+end
+
+--- Sets track data on the force overlay
+---@param index integer
+---@param trackDataSnapshot TrackMeasurement
+---@param trackEntityTransform table
+---@param heartlineOffset table
+function ForceOverlay:SetTrackData(
+	index,
+	trackDataSnapshot,
+	trackEntityTransform,
+	heartlineOffset
+)
+	-- Transform calculations
+	local wsTransform = trackEntityTransform:ToWorld(trackDataSnapshot.transform)
+	local wsHeartlineOffset = wsTransform:ToWorldDir(heartlineOffset)
+	local vScreenUv = api.camera.GetTopDownScreenUVFromWorldPosition(
+		api.camera.GetMainCameraID(),
+		wsTransform:GetPos() + wsHeartlineOffset
+	)
+
+	local data = {
+		screenX = vScreenUv:GetX(),
+		screenY = vScreenUv:GetY(),
+
+		vertG = trackDataSnapshot.g:GetY(),
+		latG = trackDataSnapshot.g:GetX(),
+	}
+
+	api.ui2.CreateDataStoreContext(data, "ProTrack", "data", "followers", global.tostring(index))
+end
 
 ---@param value boolean
 function ForceOverlay:Set_CameraIsHeartlineMode(value)
@@ -123,13 +195,13 @@ function ForceOverlay:Get_PlayingInDir()
 	return self.playingInDir
 end
 
----@param value integer
+---@param value number
 function ForceOverlay:Set_Time(value)
 	self.time = value
 	api.ui2.SetDataStoreElement(self.mainContext, "time", value)
 end
 
----@return integer
+---@return number
 function ForceOverlay:Get_Time()
 	return self.time
 end

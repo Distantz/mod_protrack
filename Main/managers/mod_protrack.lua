@@ -418,6 +418,7 @@ function protrackManager.EndEditMode(self)
     for _, gizmo in global.ipairs(self.followerGizmos) do
         shutdownGizmo(gizmo)
     end
+    logger:Info("Clearing gizmo")
     self.followerGizmos = nil
 end
 
@@ -474,6 +475,7 @@ end
 
 function protrackManager.ClearWalkerOrigin(self)
     Datastore.trackWalkerOrigin = nil
+    self.uiWrapper:ClearAllTrainData()
     self.distances = nil
     self.line:ClearPoints()
     if self.referencePointGizmo ~= nil then
@@ -546,6 +548,8 @@ function protrackManager.NewWalk(self)
     self.referencePointGizmo:SetEndPointTransform(
         Datastore.trackEntityTransform:ToWorld(Datastore.datapoints[#Datastore.datapoints].measurements[1].transform)
     )
+
+    logger:Info("NewWalk over.")
 end
 
 function protrackManager.StartTrackCamera(self)
@@ -625,8 +629,6 @@ function protrackManager.Advance(self, deltaTime)
     --Gizmo.Visible(not self.inCamera)
 
     local hasData = Datastore.HasData()
-    api.ui2.SetDataStoreElement(protrackManager.uiWrapper.mainContext, "hasData", hasData)
-
     if hasData then
         if Datastore.trackWalkerOrigin == nil or Datastore.trackEntityTransform == nil then
             self:ClearWalkerOrigin()
@@ -640,58 +642,71 @@ function protrackManager.Advance(self, deltaTime)
         self.simulationTime = mathUtils.Clamp(self.simulationTime, 0, Datastore.GetTimeLength())
 
         -- Set datastore
-        api.ui2.SetDataStoreElement(protrackManager.uiWrapper.mainContext, "time",
-            self.simulationTime / Datastore.GetTimeLength())
+        self.uiWrapper:Set_Time(self.simulationTime / Datastore.GetTimeLength())
 
-        --- Helper func
-        ---@param index integer The gizmo index
-        ---@param gizmo protrack.gizmo.TrackPointGizmo The gizmo
-        local function setGizmoToPoint(index, gizmo)
-            local pt = Datastore.SampleDatapointAtTime(self.simulationTime, index)
-            if pt == nil then
-                return
-            end
+        local trainMeasurement = Datastore.SampleDatapointAtTime(self.simulationTime)
 
-            local wsTrans = Datastore.trackEntityTransform:ToWorld(pt.transform)
-            local wsCamOffset = wsTrans:ToWorldDir(Datastore.trackWalkerOrigin.camOffset)
-            local wsHeartlineOffset = wsTrans:ToWorldDir(Datastore.heartlineOffset)
-
-            gizmo:SetTransform(
-                wsTrans:WithPos(wsTrans:GetPos() + wsHeartlineOffset)
-            )
-            gizmo:SetGForce(
-                pt.g
-            )
-
-            if index ~= 1 then
-                return
-            end
-
-            -- Pick between both heartline and standard viewing
-            local wsCamOffsetUsed = wsCamOffset
-            if protrackManager.uiWrapper:Get_CameraIsHeartlineMode() then
-                wsCamOffsetUsed = wsHeartlineOffset
-            end
-
-            ---@diagnostic disable-next-line: param-type-mismatch
-            api.transform.SetPosition(Cam.PreviewCameraEntity, wsTrans:GetPos() + wsCamOffsetUsed)
-            api.transform.SetOrientation(Cam.PreviewCameraEntity, wsTrans:GetOr())
-
-            local indexDatapoint = Datastore.GetFloorIndexForTime(self.simulationTime)
-            local numDatapoints = Datastore.GetNumDatapoints()
-
-            api.ui2.SetDataStoreElement(protrackManager.uiWrapper.mainContext, "currKeyframe", indexDatapoint)
-            api.ui2.SetDataStoreElement(protrackManager.uiWrapper.mainContext, "keyframeCount", numDatapoints)
-            api.ui2.SetDataStoreElement(protrackManager.uiWrapper.mainContext, "vertGForce", pt.g:GetY())
-            api.ui2.SetDataStoreElement(protrackManager.uiWrapper.mainContext, "latGForce", pt.g:GetX())
-            api.ui2.SetDataStoreElement(protrackManager.uiWrapper.mainContext, "speed",
-                UnitConversion.Speed_ToUserPref(pt.speed, UnitConversion.Speed_MS))
+        -- Clear data if none
+        if trainMeasurement == nil then
+            self.uiWrapper:ClearAllTrainData()
+            return
         end
 
-        for i, gizmo in global.ipairs(self.followerGizmos) do
-            setGizmoToPoint(i, gizmo)
-        end
+        self:UpdateUserInterfaceFromData(trainMeasurement, self.simulationTime)
     end
+end
+
+--- Sets UI and Gizmo data based on measurements
+---@param trainMeasurement TrainMeasurement
+---@param simulationTime number
+function protrackManager:UpdateUserInterfaceFromData(trainMeasurement, simulationTime)
+    --- Helper func
+    ---@param index integer The gizmo index
+    ---@param data TrackMeasurement
+    ---@param gizmo protrack.gizmo.TrackPointGizmo The gizmo
+    local function setGizmoData(index, data, gizmo)
+        if data == nil then
+            return
+        end
+
+        local wsTrans = Datastore.trackEntityTransform:ToWorld(data.transform)
+        local wsCamOffset = wsTrans:ToWorldDir(Datastore.trackWalkerOrigin.camOffset)
+        local wsHeartlineOffset = wsTrans:ToWorldDir(Datastore.heartlineOffset)
+
+        gizmo:SetTransform(
+            wsTrans:WithPos(wsTrans:GetPos() + wsHeartlineOffset)
+        )
+        gizmo:SetGForce(
+            data.g
+        )
+
+        -- Only set camera data from first track follower
+        if index ~= 1 then
+            return
+        end
+
+        -- Pick between both heartline and standard viewing
+        local wsCamOffsetUsed = wsCamOffset
+        if self.uiWrapper:Get_CameraIsHeartlineMode() then
+            wsCamOffsetUsed = wsHeartlineOffset
+        end
+
+        ---@diagnostic disable-next-line: param-type-mismatch
+        api.transform.SetPosition(Cam.PreviewCameraEntity, wsTrans:GetPos() + wsCamOffsetUsed)
+        api.transform.SetOrientation(Cam.PreviewCameraEntity, wsTrans:GetOr())
+    end
+
+    for i, gizmo in global.ipairs(self.followerGizmos) do
+        setGizmoData(i, trainMeasurement.measurements[i], gizmo)
+    end
+
+    self.uiWrapper:SetTrainData(
+        trainMeasurement,
+        Datastore.GetFloorIndexForTime(simulationTime),
+        #Datastore.datapoints,
+        Datastore.trackEntityTransform,
+        Datastore.heartlineOffset
+    )
 end
 
 --/ Validate class methods and interfaces, the game needs

@@ -4,7 +4,7 @@ local global = _G
 local api = global.api
 local pairs = global.pairs
 local require = global.require
-local logger = require("forgeutils.logger").Get("ProTrackDatastore")
+local logger = require("forgeutils.logger").Get("ProTrackDatastore", "INFO")
 local mathUtils = require("Common.mathUtils")
 local Quaternion = require("Quaternion")
 local Vector3 = require("Vector3")
@@ -57,17 +57,15 @@ function Datastore.GetFloorIndexForTime(time)
     return global.math.floor(Datastore.GetFloatIndexForTime(time))
 end
 
---- Samples a datapoint at a float index.
---- Will interpolate between datapoints between float indexes.
----@param floatIndex number
----@param offsetId integer The offset id.
----@return TrackMeasurement|nil
-function Datastore.SampleDatapointAtFloatIndex(floatIndex, offsetId)
-    if not Datastore.HasData() then
-        logger:Error("SampleDatapointAtTime requires datastore to have data! See Datastore.HasData().")
-        return nil
-    end
+---@class IndexData
+---@field fromIdx integer The from index
+---@field toIdx integer The to index
+---@field fractional number The fractional (0 - 1) between from and to
 
+--- Returns time data from a float index.
+---@param floatIndex number The float index (0 to n)
+---@return IndexData timeData
+function Datastore.GetIndexDataFromFloatIndex(floatIndex)
     local numPts = #Datastore.datapoints
     local floor = global.math.floor(floatIndex)
     local fractionalLerp = floatIndex - floor
@@ -75,47 +73,96 @@ function Datastore.SampleDatapointAtFloatIndex(floatIndex, offsetId)
     local fromIdx = global.math.min(floor + 1, numPts)
     local toIdx = global.math.min(fromIdx + 1, numPts)
 
+    ---@type IndexData
+    return {
+        fromIdx = fromIdx,
+        toIdx = toIdx,
+        fractional = fractionalLerp
+    }
+end
+
+--- Samples a datapoint.
+--- Will interpolate between datapoints between float indexes.
+---@param time IndexData
+---@param offsetId integer The offset id.
+---@return TrackMeasurement | nil
+function Datastore.GetInterpolatedTrackMeasurementAtIndexData(time, offsetId)
+    if not Datastore.HasData() then
+        logger:Error("GetInterpolatedTrackMeasurementAtTime requires datastore to have data! See Datastore.HasData().")
+        return nil
+    end
+
     -- Get points
-    local fromPt = Datastore.datapoints[fromIdx].measurements[offsetId]
-    local toPt = Datastore.datapoints[toIdx].measurements[offsetId]
+    local fromPt = Datastore.datapoints[time.fromIdx].measurements[offsetId]
+    local toPt = Datastore.datapoints[time.toIdx].measurements[offsetId]
 
     -- Construct new PT with slerping.
-
     local lerpPos = mathUtils.Lerp(
         fromPt.transform:GetPos(),
         toPt.transform:GetPos(),
-        fractionalLerp
+        time.fractional
     )
     local lerpOr = Quaternion.SLerp(
         fromPt.transform:GetOr(),
         toPt.transform:GetOr(),
-        fractionalLerp
+        time.fractional
     )
     local lerpG = mathUtils.Lerp(
         fromPt.g,
         toPt.g,
-        fractionalLerp
-    )
-    local lerpSpeed = mathUtils.Lerp(
-        Datastore.datapoints[fromIdx].originVelocity,
-        Datastore.datapoints[toIdx].originVelocity,
-        fractionalLerp
+        time.fractional
     )
 
+    ---@type TrackMeasurement
     return {
         g = lerpG,
         transform = TransformQ.FromOrPos(lerpOr, lerpPos),
-        speed = lerpSpeed
+    }
+end
+
+--- Samples a velocity.
+--- Will interpolate between datapoints between float indexes.
+---@param time IndexData
+---@return number velocity
+function Datastore.GetInterpolatedSpeedAtIndexData(time)
+    return mathUtils.Lerp(
+        Datastore.datapoints[time.fromIdx].originVelocity,
+        Datastore.datapoints[time.toIdx].originVelocity,
+        time.fractional
+    )
+end
+
+--- Samples a datapoint at a float index.
+--- Will interpolate between datapoints between float indexes.
+---@param floatIndex number
+---@return TrainMeasurement | nil
+function Datastore.SampleDatasetAtFloatIndex(floatIndex)
+    if not Datastore.HasData() then
+        logger:Error("SampleDatasetAtFloatIndex requires datastore to have data! See Datastore.HasData().")
+        return nil
+    end
+
+    local indexData = Datastore.GetIndexDataFromFloatIndex(floatIndex)
+    local fromPt = Datastore.datapoints[indexData.fromIdx]
+
+    local trackMeasurements = {}
+    for i, _ in global.ipairs(fromPt.measurements) do
+        trackMeasurements[i] = Datastore.GetInterpolatedTrackMeasurementAtIndexData(indexData, i)
+    end
+
+    ---@type TrainMeasurement
+    return {
+        originVelocity = Datastore.GetInterpolatedSpeedAtIndexData(indexData),
+        measurements = trackMeasurements
     }
 end
 
 --- Samples a datapoint at a time.
 --- Will interpolate between datapoints between float indexes.
 ---@param time number
----@param offsetId integer The offset id.
----@return TrackMeasurement|nil
-function Datastore.SampleDatapointAtTime(time, offsetId)
-    return Datastore.SampleDatapointAtFloatIndex(Datastore.GetFloatIndexForTime(time), offsetId)
+---@return TrainMeasurement | nil
+function Datastore.SampleDatapointAtTime(time)
+    return Datastore.SampleDatapointAtFloatIndex(Datastore.GetFloatIndexForTime(time))
 end
 
 ---Returns the total time length of the datastore

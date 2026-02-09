@@ -96,37 +96,37 @@ class CamForceOverlay extends preact.Component {
         // Bind to datastore
         this._helper = new DataStoreHelper();
 
-        this._helper.addPropertyListener(["ProTrack"], "inCamera", (value) => {
-            this.setState({ inCamera: value });
-        });
+        // this._helper.addPropertyListener(["ProTrack"], "inCamera", (value) => {
+        //     this.setState({ inCamera: value });
+        // });
 
-        this._helper.addPropertyListener(["ProTrack"], "cameraIsHeartlineMode", (value) => {
-            this.setState({ cameraIsHeartlineMode: value });
-        });
+        // this._helper.addPropertyListener(["ProTrack"], "cameraIsHeartlineMode", (value) => {
+        //     this.setState({ cameraIsHeartlineMode: value });
+        // });
 
-        this._helper.addPropertyListener(["ProTrack"], "playingInDir", (value) => {
-            this.setState({ playingInDir: value });
-        });
+        // this._helper.addPropertyListener(["ProTrack"], "playingInDir", (value) => {
+        //     this.setState({ playingInDir: value });
+        // });
 
-        this._helper.addPropertyListener(["ProTrack"], "time", (value) => {
-            this.setState({ time: value });
-        });
+        // this._helper.addPropertyListener(["ProTrack"], "time", (value) => {
+        //     this.setState({ time: value });
+        // });
 
-        this._helper.addPropertyListener(["ProTrack"], "hasData", (value) => {
-            this.setState({ hasData: value });
-        });
+        // this._helper.addPropertyListener(["ProTrack"], "hasData", (value) => {
+        //     this.setState({ hasData: value });
+        // });
 
-        this._helper.addPropertyListener(["ProTrack"], "trackMode", (value) => {
-            this.setState({ trackMode: value });
-        });
+        // this._helper.addPropertyListener(["ProTrack"], "trackMode", (value) => {
+        //     this.setState({ trackMode: value });
+        // });
 
-        this._helper.addPropertyListener(["ProTrack"], "forceLockVertG", (value) => {
-            this.setState({ forceLockVertG: value });
-        });
+        // this._helper.addPropertyListener(["ProTrack"], "forceLockVertG", (value) => {
+        //     this.setState({ forceLockVertG: value });
+        // });
 
-        this._helper.addPropertyListener(["ProTrack"], "forceLockLatG", (value) => {
-            this.setState({ forceLockLatG: value });
-        });
+        // this._helper.addPropertyListener(["ProTrack"], "forceLockLatG", (value) => {
+        //     this.setState({ forceLockLatG: value });
+        // });
 
         this._helper.getAllPropertiesNow();
     }
