@@ -644,7 +644,7 @@ function protrackManager.Advance(self, deltaTime)
         -- Set datastore
         self.uiWrapper:Set_Time(self.simulationTime / Datastore.GetTimeLength())
 
-        local trainMeasurement = Datastore.SampleDatapointAtTime(self.simulationTime)
+        local trainMeasurement = Datastore.SampleDatasetAtTime(self.simulationTime)
 
         -- Clear data if none
         if trainMeasurement == nil then

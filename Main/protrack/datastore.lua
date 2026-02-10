@@ -161,8 +161,8 @@ end
 --- Will interpolate between datapoints between float indexes.
 ---@param time number
 ---@return TrainMeasurement | nil
-function Datastore.SampleDatapointAtTime(time)
-    return Datastore.SampleDatapointAtFloatIndex(Datastore.GetFloatIndexForTime(time))
+function Datastore.SampleDatasetAtTime(time)
+    return Datastore.SampleDatasetAtFloatIndex(Datastore.GetFloatIndexForTime(time))
 end
 
 ---Returns the total time length of the datastore
