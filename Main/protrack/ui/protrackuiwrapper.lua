@@ -19,7 +19,10 @@ local constructor       = ForceOverlay.new
 function ForceOverlay:new(_fnOnReadyCallback)
 	---@type protrack.ui.ProtrackUIWrapper
 	local slf = constructor(ForceOverlay)
+
+	-- Create datastore
 	slf.mainContext = api.ui2.GetDataStoreContext("ProTrack")
+	slf:ClearAllTrainData()
 
 	-- Set defaults
 	slf.cameraIsHeartlineMode = false
@@ -47,17 +50,19 @@ end
 
 --#region Property getters/setters
 
-function ForceOverlay:ClearAllTrackData()
-	---@diagnostic disable-next-line: redundant-parameter
-	local context = api.ui2.GetDataStoreContext("ProTrack", "trainData", "trackData")
-	api.ui2.DeleteDataStoreContext(context)
-end
-
 function ForceOverlay:ClearAllTrainData()
 	local context = api.ui2.GetDataStoreContext("ProTrack", "trainData")
-
 	---@diagnostic disable-next-line: redundant-parameter
 	api.ui2.DeleteDataStoreContext(context)
+	api.ui2.CreateDataStoreContext(
+		{
+			speed = 0,
+			currentKeyframe = 0,
+			maxKeyframe = 0
+		},
+		"ProTrack",
+		"trainData"
+	)
 end
 
 --- Sets track data on the force overlay
@@ -73,15 +78,23 @@ function ForceOverlay:SetTrainData(
 	trackEntityTransform,
 	heartlineOffset
 )
-	self:ClearAllTrackData()
+	local dsContext = api.ui2.GetDataStoreContext("ProTrack", "trainData")
 
-	local data = {
-		speed = unitConversion.Speed_ToUserPref(trainDataSnapshot.originVelocity, unitConversion.Speed_MS),
-		currentKeyframe = currentKeyframe,
-		maxKeyframe = maxKeyframe,
-	}
-
-	api.ui2.CreateDataStoreContext(data, "ProTrack", "trainData")
+	api.ui2.SetDataStoreElement(
+		dsContext,
+		"speed",
+		unitConversion.Speed_ToUserPref(trainDataSnapshot.originVelocity, unitConversion.Speed_MS)
+	)
+	api.ui2.SetDataStoreElement(
+		dsContext,
+		"currentKeyframe",
+		currentKeyframe
+	)
+	api.ui2.SetDataStoreElement(
+		dsContext,
+		"maxKeyframe",
+		maxKeyframe
+	)
 
 	for index, trackDataSnapshot in global.ipairs(trainDataSnapshot.measurements) do
 		self:SetTrackData(index, trackDataSnapshot, trackEntityTransform, heartlineOffset)
@@ -107,15 +120,12 @@ function ForceOverlay:SetTrackData(
 		wsTransform:GetPos() + wsHeartlineOffset
 	)
 
-	local data = {
-		screenX = vScreenUv:GetX(),
-		screenY = vScreenUv:GetY(),
+	local context = api.ui2.GetDataStoreContext("ProTrack", "trainData", "followers", global.tostring(index))
 
-		vertG = trackDataSnapshot.g:GetY(),
-		latG = trackDataSnapshot.g:GetX(),
-	}
-
-	api.ui2.CreateDataStoreContext(data, "ProTrack", "data", "followers", global.tostring(index))
+	api.ui2.SetDataStoreElement(context, "screenX", vScreenUv:GetX())
+	api.ui2.SetDataStoreElement(context, "screenY", vScreenUv:GetY())
+	api.ui2.SetDataStoreElement(context, "vertG", trackDataSnapshot.g:GetY())
+	api.ui2.SetDataStoreElement(context, "latG", trackDataSnapshot.g:GetX())
 end
 
 ---@param value boolean
@@ -209,6 +219,11 @@ end
 --#endregion
 
 -- #region Button responders
+
+function ForceOverlay:AddListener_Log(_callback, _self)
+	---@diagnostic disable-next-line: undefined-field
+	self:AddEventListener("Protrack_Log", 1, _callback, _self)
+end
 
 function ForceOverlay:AddListener_ReanchorRequested(_callback, _self)
 	---@diagnostic disable-next-line: undefined-field

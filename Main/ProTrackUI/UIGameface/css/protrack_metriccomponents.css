@@ -7,6 +7,8 @@
     padding: 0.25rem 0.5rem;
     min-height: 2rem;
     border-radius: 0.5rem;
+    width: max-content;
+    min-width: 5rem;
 }
 
 .ProTrackUI_metriProTrackUI_metricDataRowcRow .DataRow_icon {
@@ -15,4 +17,5 @@
 
 .ProTrackUI_metricDataRow .DataRow_value {
     margin-left: auto;
+    white-space: nowrap;
 }

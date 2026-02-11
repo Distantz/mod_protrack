@@ -185,6 +185,13 @@ function protrackManager.Activate(self)
 
             -- Button listeners
 
+            protrackManager.uiWrapper:AddListener_Log(
+                function(value)
+                    logger:Info("[UI] " .. global.tostring(value))
+                end,
+                nil
+            )
+
             protrackManager.uiWrapper:AddListener_ReanchorRequested(
                 function()
                     self:NewTrainPosition()

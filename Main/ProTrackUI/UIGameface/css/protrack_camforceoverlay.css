@@ -20,7 +20,6 @@
 }
 
 .ProTrackUI_panelInner {
-    justify-self: center;
     display: flex;
     flex-direction: column;
 }
@@ -40,18 +39,32 @@
     align-items: center;
 }
 
+.ProTrackUI_flexRow>* {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.ProTrackUI_innerGap.ProTrackUI_flexColumn>* {
+    margin-right: 0;
+    margin-bottom: 0.25rem;
+}
+
+.ProTrackUI_innerGap.ProTrackUI_flexColumn>*:last-child {
+    margin-bottom: 0;
+}
+
+.ProTrackUI_flexColumn {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+}
+
 .ProTrackUI_minRow {
     display: flex;
     flex: 0;
     flex-direction: row;
     align-items: center;
     justify-items: center;
-}
-
-.ProTrackUI_flexRow>* {
-    flex: 1;
-    flex-basis: 0%;
-    min-width: 0;
 }
 
 .ProTrackUI_distributeRow {

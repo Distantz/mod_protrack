@@ -207,8 +207,9 @@ def main():
         sys.exit(1)
     
     success = process_ovlpaths(cobra_tools_path, manifest_path)
+    if success:
+        subprocess.run(['start', f"steam://rungameid/{2688950}"], shell=True, check=True)
     sys.exit(0 if success else 1)
-
 
 if __name__ == "__main__":
     main()
