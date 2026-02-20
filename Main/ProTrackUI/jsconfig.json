@@ -1,0 +1,19 @@
+{
+    "compilerOptions": {
+        "moduleResolution": "Bundler",
+        "checkJs": true,
+        "allowJs": true,
+        "baseUrl": ".",
+        "module": "preserve",
+        "paths": {
+            "/js/*": [
+                "UIGameface/js/*",
+                "C:/Users/Thomas/Documents/Modding/PC2/UI Test Environment/UIGameface/js/*"
+            ]
+        }
+    },
+    "include": [
+        "UIGameface/**/*",
+        "C:/Users/Thomas/Documents/Modding/PC2/UI Test Environment/UIGameface/**/*"
+    ]
+}

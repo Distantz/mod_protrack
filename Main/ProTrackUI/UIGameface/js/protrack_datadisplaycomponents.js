@@ -2,7 +2,7 @@ import * as preact from "/js/common/lib/preact.js";
 import * as Format from "/js/common/util/LocalisationUtil.js";
 import { DirectionalGForceMetric, KeyframeMetric, MetricDisplay } from '/js/protrack_metriccomponents.js';
 
-export const StateMetrics = ({ trainData, follower, layout = "row" }) => {
+export const StateMetrics = ({ trainData = null, follower = null, layout = "row" }) => {
     const containerClass = layout === "column"
         ? "ProTrackUI_innerGap ProTrackUI_flexColumn"
         : "ProTrackUI_innerGap ProTrackUI_flexRow";
