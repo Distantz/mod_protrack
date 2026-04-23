@@ -193,6 +193,11 @@ def main():
         "manifest",
         help="Path to the Manifest.xml file"
     )
+    parser.add_argument(
+        "-launch",
+        action="store_true",
+        help="If present, Planet Coaster 2 will launch"
+    )
     
     args = parser.parse_args()
 
@@ -208,7 +213,9 @@ def main():
     
     success = process_ovlpaths(cobra_tools_path, manifest_path)
     if success:
-        subprocess.run(['start', f"steam://rungameid/{2688950}"], shell=True, check=True)
+        if args.launch:
+            subprocess.run(['start', f"steam://rungameid/{2688950}"], shell=True, check=True)
+
     sys.exit(0 if success else 1)
 
 if __name__ == "__main__":

@@ -28,10 +28,6 @@ FontConfig;
 AccentColorUtil;
 UIScaleUtil;
 
-function print(value) {
-    Engine.sendEvent("Protrack_Log", value);
-}
-
 Engine.initialiseSystems([
     {
         system: Engine.Systems.System,
